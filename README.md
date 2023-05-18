@@ -1,7 +1,7 @@
 
 # JIT Installation Instructions
 
-Follow these set of instructions to install JIT
+Follow these set of instructions to install JIT. For AWS pre-requisites refer to this [README Document](README_AWS_AND_SECRET_MANAGER_INTEGRATION.md)
 
 ## On the Domino Side Create the Tar balls 
 
