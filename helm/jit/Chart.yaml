@@ -1,0 +1,12 @@
+apiVersion: v1
+name: jit
+version: 1.0.0
+description: jit
+home: https://github.com/dominodatalab/jit-aws-auth
+keywords:
+- jit
+- aws credential propagation
+- dynamic secrets
+maintainers:
+- email: sameer.wadkar@dominodatalab.com
+  name: Sameer Wadkar

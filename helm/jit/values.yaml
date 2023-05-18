@@ -1,0 +1,17 @@
+image:
+  repository: quay.io/domino
+  serverContainer: jit-server
+  clientContainer: jit-client
+  serverAppVersion: v1.0.0-release
+  clientAppVersion: v1.0.0-release
+  pullPolicy: Always
+
+env:
+  name: jit
+  service: jit-svc
+  iamrole: arn:aws:iam::<EKS_ACCOUNT_NO>:role/dev-domino-jit-role
+  namespace:
+    platform: domino-platform
+    compute: domino-compute
+    field: domino-field
+

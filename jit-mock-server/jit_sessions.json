@@ -1,0 +1,48 @@
+
+  [
+  {
+    "accessGroups": [],
+    "accessRequests": [
+      {
+      }
+    ],
+    "active": "True",
+    "alias": "jon_doe_1",
+    "creationTime": "2021-04-27 03:26:53.081518Z",
+    "duration": "2",
+    "expirationTime": "2021-04-27 05:26:53.081520Z",
+    "jitSessionId": "jit-john-doe-cdf78abe",
+    "sub": "jdoe",
+    "userId": "jdoe"
+  },
+    {
+    "accessGroups": [],
+    "accessRequests": [
+      {
+      }
+    ],
+    "active": "True",
+    "alias": "jon_doe_1",
+    "creationTime": "2021-04-27 03:26:53.081518Z",
+    "duration": "2",
+    "expirationTime": "2021-04-27 05:26:53.081520Z",
+    "jitSessionId": "jit-john-doe-cdf78abe",
+    "sub": "jdoe",
+    "userId": "jdoe"
+  },
+  {
+    "accessGroups": [],
+    "accessRequests": [
+      {
+      }
+    ],
+    "active": "True",
+    "alias": "jon_doe_1",
+    "creationTime": "2021-04-27 03:26:53.081518Z",
+    "duration": "2",
+    "expirationTime": "2021-04-27 05:26:53.081520Z",
+    "jitSessionId": "jit-john-doe-cdf78abe",
+    "sub": "jdoe",
+    "userId": "jdoe"
+  }
+]

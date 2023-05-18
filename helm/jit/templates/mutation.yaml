@@ -1,0 +1,49 @@
+apiVersion: apps.dominodatalab.com/v1alpha1
+kind: Mutation
+metadata:
+  name: {{ .Values.env.name }}
+  namespace:  {{ .Values.env.namespace.platform }}
+rules:
+  - labelSelectors:
+      - dominodatalab.com/workload-type in (Workspace)
+    insertVolumeMounts:
+      containerSelector:
+        - run
+      volumeMounts:
+        - name: log-volume
+          mountPath: /var/log/jit/
+          readOnly: true
+        - mountPath: /etc/.aws/
+          name: jit-aws-creds
+          readOnly: true
+    insertContainer:
+      containerType: app
+      spec:
+        name:  jit
+        image: "{{ .Values.image.repository }}/{{ .Values.image.clientContainer }}:{{ .Values.image.clientAppVersion }}"
+        imagePullPolicy: Always
+        volumeMounts:
+          - name: log-volume
+            mountPath: /var/log/jit/
+          - mountPath: /etc/.aws/
+            name: jit-aws-creds
+    insertVolumes:
+      - emptyDir: {}
+        name: jit-aws-creds
+      - emptyDir: {}
+        name: log-volume
+    modifyEnv:
+      containerSelector:
+        - run
+        - jit
+      env:
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: /etc/.aws/credentials
+        - name: DOMINO_JIT_ENDPOINT
+          value: "http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"
+        - name: DOMINO_API_PROXY
+          value: http://localhost:8899
+        - name: DOMINO_JIT_REFRESH_ENDPOINT
+          value: "http://localhost:"
+
+

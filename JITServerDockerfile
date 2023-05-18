@@ -1,0 +1,22 @@
+FROM quay.io/domino/python-public:3.8.7-slim
+ADD requirements.txt .
+ENV PATH=$PATH:/home/app/.local/bin:/home/app/bin
+ENV PYTHONUNBUFFERED=true
+ENV PYTHONUSERBASE=/app
+ENV PYTHONPATH=/app
+ENV FLASK_ENV=production
+ENV LOG_LEVEL=WARNING
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ENV PORT 80
+RUN pip install --upgrade pip
+RUN pip install --user -r requirements.txt
+WORKDIR /app
+ADD jit jit
+RUN apt-get update && apt-get upgrade -y
+USER 1000
+ENTRYPOINT ["python"]
+CMD ["jit/jit_server.py"]
+#CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 jit_server:app
+
+
