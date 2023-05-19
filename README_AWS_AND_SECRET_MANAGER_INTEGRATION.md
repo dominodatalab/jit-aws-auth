@@ -17,7 +17,7 @@ kubectl create namespace domino-field
 
 ```
 
-2. Create a Secret in AWS Secrets Manager in the same region EKS is installed . The format is <ENV>/domino/jit. We do not own this secret. Fannie Mae does. The same values are just test values
+2. Create a Secret in AWS Secrets Manager in the same region EKS is installed . The format is `<env>/domino/jit`. We do not own this secret. Fannie Mae does. The same values are just test values
 ```shell
 #dev/domino/jit 
 #prod/domino/jit 
