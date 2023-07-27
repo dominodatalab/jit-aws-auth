@@ -21,7 +21,7 @@ kubectl create namespace domino-field
    b. `dev/ping/client`
 
 
-2 (Optional). Create a Secret `domino/jit` in AWS Secrets Manager in the same region EKS is installed. We do not own this secret. The same values are just test values
+2 (Optional). Create a Secret `<env>/domino/jit` in AWS Secrets Manager in the same region EKS is installed. We do not own this secret. The same values are just test values
 ```shell
 {"root_cert":"test_contents","jit_endpoint":"http://www.google.com","token_endpoint":"http://www.google.com","client_id":"test_client_id","client_secret":"test_client_secret","r_username":"r_user","r_password":"r_password","minimum_token_validity_required_in_seconds":"300.0"}
 ```
