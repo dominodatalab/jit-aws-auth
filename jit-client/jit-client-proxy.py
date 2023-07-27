@@ -24,8 +24,8 @@ logger.addHandler(handler)
 
 @app.route('/refresh', methods=['GET'])
 def refresh():
-    result = refresh_jit_credentials()
-    return {'result':result}
+    success = refresh_jit_credentials()
+    return {'is_refreshed': success}
 
 @app.route('/healthz', methods=['GET'])
 def healthz():
@@ -67,7 +67,7 @@ def refresh_jit_credentials():
              "Content-Type": "application/json",
              "Authorization": "Bearer " + token,
         }
-        logger.warning(f'token {token}')
+
         resp = requests.get(service_endpoint, headers=headers, json={})
         # Writing to file
         logger.warning(resp.status_code)
@@ -85,6 +85,7 @@ def refresh_jit_credentials():
     else:
         result = 'Trouble getting the access token from api_proxy. Check log file {log_file} for details.'
         logger.error(result)
+    return success
 
 if __name__ == "__main__":
     refresh_jit_credentials()

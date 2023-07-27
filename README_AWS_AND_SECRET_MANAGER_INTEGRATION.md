@@ -14,19 +14,19 @@ This is a list of steps and checks to follow as a preparatory step for installin
 kubectl get namespace domino-field
 # or 
 kubectl create namespace domino-field
-
 ```
 
-2. Create a Secret in AWS Secrets Manager in the same region EKS is installed . The format is <ENV>/domino/jit. We do not own this secret. Fannie Mae does. The same values are just test values
+2. Create two secrets in the AWS Secrets 
+   a. `dev/nuid`
+   b. `dev/ping/client`
+
+
+2 (Optional). Create a Secret `domino/jit` in AWS Secrets Manager in the same region EKS is installed. We do not own this secret. The same values are just test values
 ```shell
-#dev/domino/jit 
-#prod/domino/jit 
-#test/domino/jit
-{"root_cert":"test_contents","jit_endpoint":"http://www.google.com","token_endpoint":"http://www.google.com","client_id":"test_client_id","client_secret":"test_client_secret","r_username":"r_user","r_password":"r_password","minimum_token_validity_required_in_seconds":"60.0"}
-
+{"root_cert":"test_contents","jit_endpoint":"http://www.google.com","token_endpoint":"http://www.google.com","client_id":"test_client_id","client_secret":"test_client_secret","r_username":"r_user","r_password":"r_password","minimum_token_validity_required_in_seconds":"300.0"}
 ```
 
-3. Next define roles (One for the secret in each environment) . An example in the Domino account has name dev-domino-jit-role and has the following policy with name dev-domino-jit-policy attached to it 
+3. Next define roles (One for the secret in each environment) . An example in the Domino account has name `domino-jit-role` and has the following policy with name `domino-jit-policy` attached to it 
 ```json
 {
     "Version": "2012-10-17",
@@ -38,7 +38,9 @@ kubectl create namespace domino-field
                 "secretsmanager:DescribeSecret"
             ],
             "Resource": [
-                "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/domino/jit-kNnySv"
+                "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/domino/jit-kNnySv",
+                "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/nuid-SIHUKk",
+                "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/ping/client-R3cHbp"
             ]
         }
     ]
@@ -96,7 +98,39 @@ helm upgrade -n kube-system csi-secrets-store \
 ```
 
 
-6. Install the secrets provider in K8s. You will ned to change the ARN of the secret
+6. Install the secrets provider in K8s. You will need to change the ARN of the secret
+
+
+```yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: jit-secrets
+  namespace: domino-field
+spec:
+  provider: aws
+  parameters:
+    objects: |
+      - objectName: "arn:aws:secretsmanager:us-west-2:<EKS_ACCOUNT_NO>:secret:dev/nuid-SIHUKk"
+        objectType: "secretsmanager"
+        objectAlias: "nuid"
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: jit-secrets
+  namespace: domino-field
+spec:
+  provider: aws
+  parameters:
+    objects: |
+      - objectName: "arn:aws:secretsmanager:us-west-2:<EKS_ACCOUNT_NO>:secret:dev/ping/client-R3cHbp"
+        objectType: "secretsmanager"
+        objectAlias: "ping-client"
+```
+
+
+(Optional)
 ```yaml
 apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
@@ -111,7 +145,7 @@ spec:
         objectType: "secretsmanager"
         objectAlias: "jit.json"
         jmesPath:
-          - path: "fannie_mae_root_cert"
+          - path: "root_cert"
             objectAlias: "certificate.cer"
 ```
 

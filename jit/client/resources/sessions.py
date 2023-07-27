@@ -1,7 +1,7 @@
 """
 Defines an Access Engine client mixin for accessing the JIT Session APIs
 """
-from utils.types import JsonDict
+from jit.utils.types import JsonDict
 from jit.client import constants
 
 CERT_PATH = constants.certificate_path
