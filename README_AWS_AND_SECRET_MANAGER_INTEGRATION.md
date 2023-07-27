@@ -21,10 +21,6 @@ kubectl create namespace domino-field
    b. `dev/ping/client`
 
 
-2 (Optional). Create a Secret `<env>/domino/jit` in AWS Secrets Manager in the same region EKS is installed. We do not own this secret. The same values are just test values
-```shell
-{"root_cert":"test_contents","jit_endpoint":"http://www.google.com","token_endpoint":"http://www.google.com","client_id":"test_client_id","client_secret":"test_client_secret","r_username":"r_user","r_password":"r_password","minimum_token_validity_required_in_seconds":"300.0"}
-```
 
 3. Next define roles (One for the secret in each environment) . An example in the Domino account has name `domino-jit-role` and has the following policy with name `domino-jit-policy` attached to it 
 ```json
@@ -38,7 +34,6 @@ kubectl create namespace domino-field
                 "secretsmanager:DescribeSecret"
             ],
             "Resource": [
-                "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/domino/jit-kNnySv",
                 "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/nuid-SIHUKk",
                 "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/ping/client-R3cHbp"
             ]
@@ -86,7 +81,6 @@ helm install -n kube-system csi-secrets-store \
   --set syncSecret.enabled=true \
   --set enableSecretRotation=true \
   secrets-store-csi-driver/secrets-store-csi-driver
-
 ```
 
 Alternatively you can follow the installation process in the link and run the following
@@ -100,12 +94,11 @@ helm upgrade -n kube-system csi-secrets-store \
 
 6. Install the secrets provider in K8s. You will need to change the ARN of the secret
 
-
 ```yaml
 apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
 metadata:
-  name: jit-secrets
+  name: nuid-password
   namespace: domino-field
 spec:
   provider: aws
@@ -118,7 +111,7 @@ spec:
 apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
 metadata:
-  name: jit-secrets
+  name: ping-token
   namespace: domino-field
 spec:
   provider: aws
@@ -128,28 +121,6 @@ spec:
         objectType: "secretsmanager"
         objectAlias: "ping-client"
 ```
-
-
-(Optional)
-```yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: jit-secrets
-  namespace: domino-field
-spec:
-  provider: aws
-  parameters:
-    objects: |
-      - objectName: "arn:aws:secretsmanager:us-west-2:<EKS_ACCOUNT_NO>:secret:dev/domino/jit-kNnySv"
-        objectType: "secretsmanager"
-        objectAlias: "jit.json"
-        jmesPath:
-          - path: "root_cert"
-            objectAlias: "certificate.cer"
-```
-
-
 
 ## Smoke Test
 
@@ -162,7 +133,6 @@ metadata:
   namespace: domino-field
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::<EKS_ACCOUNT_NO>:role/dev-domino-jit-role
-
 ```
 
 2. Create the following pod 
@@ -171,39 +141,46 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: nginx
+  namespace: domino-field
   labels:
     app: nginx
 spec:
   serviceAccountName: jit
   volumes:
-    - name: jit-secrets
+    - name: nuid-password
       csi:
         driver: secrets-store.csi.k8s.io
         readOnly: true
         volumeAttributes:
-          secretProviderClass: "jit-secrets"
+          secretProviderClass: "nuid-password"
+    - name: ping-token
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: "ping-token"
   containers:
   - name: nginx
     image: nginx
     volumeMounts:
-      - name: jit-secrets
-        mountPath: "/etc/config/jit/"
+      - name: nuid-password
+        mountPath: "/etc/config/nuid"
+      - name: ping-token
+        mountPath: "/etc/config/ping"
 ```
 
 
 3. Verify that the secrets are loaded 
+
 ```shell
-kubectl -n domino-field exec -it nginx -c nginx -- cat /etc/config/jit/jit.json
+kubectl -n domino-field exec -it nginx -c nginx -- ls -l /etc/config/
 
-###{"root_cert":"test_contents","jit_endpoint":"http://www.google.com","token_endpoint":"http://www.google.com","client_id":"test_client_id","client_secret":"test_client_secret","r_username":"nuid_user","r_password":"nuid_password","minimum_token_validity_required_in_seconds":"60.0"}%  
+kubectl -n domino-field  exec -it nginx -c nginx -- cat  /etc/config/nuid/nuid
 
-kubectl -n domino-field exec -it nginx -c nginx -- cat /etc/config/jit/certificate.cer
-
-###test_contents%
-
+kubectl -n domino-field  exec -it nginx -c nginx -- cat  /etc/config/ping/ping-client
 ```
 
-4. Delete Service Account
+4. Clean up
 ```shell
-kubectl -n domino-field delete service account jit
+kubectl -n domino-field delete -f .
 ```
