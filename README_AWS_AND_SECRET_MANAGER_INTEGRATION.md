@@ -85,10 +85,18 @@ helm install -n kube-system csi-secrets-store \
 
 Alternatively you can follow the installation process in the link and run the following
 ```shell
+helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+helm install -n kube-system csi-secrets-store \
+  --set syncSecret.enabled=true \
+  --set enableSecretRotation=true \
+  secrets-store-csi-driver/secrets-store-csi-driver
 helm upgrade -n kube-system csi-secrets-store \
   --set syncSecret.enabled=true \
   --set enableSecretRotation=true \
   secrets-store-csi-driver/secrets-store-csi-driver
+helm repo add aws-secrets-manager https://aws.github.io/secrets-store-csi-driver-provider-aws
+helm install -n kube-system secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws
+
 ```
 
 
