@@ -1,0 +1,18 @@
+{{ if .Values.install_mock_server }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Values.env.name }}-mock
+  name: {{ .Values.env.service }}
+  namespace: {{ .Values.env.namespace.field }}
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  selector:
+    app: {{ .Values.env.name }}-mock
+  sessionAffinity: None
+  type: ClusterIP
+{{ end }}

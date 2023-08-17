@@ -8,15 +8,15 @@ metadata:
 spec:
   serviceAccountName: jit
   volumes:
-    - name: jit-secrets
-      csi:
-        driver: secrets-store.csi.k8s.io
-        readOnly: true
-        volumeAttributes:
-          secretProviderClass: "jit-secrets"
+  - name: jit-data
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: "jit-data"
   containers:
   - name: nginx
     image: nginx
     volumeMounts:
-      - name: jit-secrets
-        mountPath: "/etc/config/jit/"
+      - name: jit-data
+        mountPath: "/etc/config"

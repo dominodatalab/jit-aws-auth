@@ -1,162 +1,181 @@
 
 # JIT Installation Instructions
 
-Follow these set of instructions to install JIT. For AWS pre-requisites refer to this [README Document](README_AWS_AND_SECRET_MANAGER_INTEGRATION.md)
+## Pre-requiste
 
-## On the Domino Side Create the Tar balls 
+Turn on [IRSA](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) for your EKS cluster 
 
-1. Create JIT Client Tarball
+## Installation Prep Steps (AWS)
 
-We will define a project root folder as `$PROJECT_BASE_FLDR` all folders below are with respect to
-this base folder
+This is a list of steps and checks to follow as a preparatory step for installing JIT
 
+1. Verify that the namespace domino-field exists in the EKS cluster or create one . 
 ```shell
-cd $PROJECT_BASE_FLDR
-export image_name=jit-client
-export image_tag=v1.0.0-release 
-docker build -f ./JITClientDockerfile -t $image_name:$image_tag .
-docker images | grep jit-client
-export image_id=2dd0fb322ebb
-rm -rf ./install/client/*
-docker save -o ./install/client/jit-client.tar $image_id $image_name:$image_tag
-tar -cvpzf jit_install/jit_client.tar.gz ./install/client
+kubectl get namespace domino-field
+# or 
+kubectl create namespace domino-field
 ```
 
-2. Create JIT Server Tarball
+2. Create two secrets in the AWS Secrets 
+   a. `dev/nuid`
+   b. `dev/ping/client`
 
-For Mock JIT Server use the one below
-```shell
-cd $PROJECT_BASE_FLDR
-export image_name=mock-jit-server
-export image_tag=v1.0.0-release 
-docker build -f ./MockJITServerDockerfile -t $image_name:$image_tag .
-docker images | grep jit-server
-export image_id=#TBD
-rm  ./install/server/* 
-docker save -o ./install/server/jit-server.tar $image_id $image_name:$image_tag
-tar -cvpzf jit_install/jit_server.tar.gz ./install/server
-```
-For  the actual JIT server use the one below
-```shell
-cd $PROJECT_BASE_FLDR
-export image_name=jit-server
-export image_tag=v1.0.0-release 
-docker build -f ./JITServerDockerfile -t $image_name:$image_tag .
-docker images | grep jit-server
-export image_id=#TBD 
-rm  ./install/server/* 
-docker save -o ./install/server/jit-server.tar $image_id $image_name:$image_tag
-tar -cvpzf jit_install/jit_server.tar.gz ./install/server
-```
 
-## Push Images from Tarball to Docker Registry
 
-  
-1. Push the `jit-client` image
-```shell
-cd $PROJECT_BASE_FLDR
-cd jit_install
-rm -rf client
-mkdir client
-mv jit_client.tar.gz ./client
-cd client
-gunzip jit_client.tar.gz
-tar -xvf jit_client.tar 
-rm  jit_client.tar*
-
-export docker_registry=quay.io/domino
-export image_name=jit-client
-export image_tag=v1.0.0-release 
-docker load < ./install/client/jit-client.tar 
-docker tag $image_name:$image_tag $docker_registry/$image_name:$image_tag
-docker push $docker_registry/$image_name:$image_tag
-```
-
-2. Push the `jit-server` image
-```shell
-cd $PROJECT_BASE_FLDR
-cd jit_install
-rm -rf server
-mkdir server
-mv jit_server.tar.gz ./server
-cd server 
-gunzip jit_server.tar.gz
-tar -xvf jit_server.tar 
-rm  jit_server.tar*
-
-export docker_registry=quay.io/domino
-export image_name=jit-server
-export image_tag=v1.0.0-release 
-docker load < ./install/server/jit-server.tar 
-docker tag $image_name:$image_tag $docker_registry/$image_name:$image_tag
-docker push $docker_registry/$image_name:$image_tag
+3. Next define roles (One for the secret in each environment) . An example in the Domino account has name `domino-jit-role` and has the following policy with name `domino-jit-policy` attached to it 
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret"
+            ],
+            "Resource": [
+                "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/nuid-SIHUKk",
+                "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/ping/client-R3cHbp"
+            ]
+        }
+    ]
+}
 ```
 
 
-## Install JIT
+4. The role definition along with its trust policy is defined as follows. Make the appropriate changes for Fannie Mae environment
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::<EKS_ACCOUNT>:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/0F5496F958BA342AF97XXXXXXXX"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringEquals": {
+                    "oidc.eks.us-west-2.amazonaws.com/id/0F5496F958BA342AF97XXXXXXXX:aud": "sts.amazonaws.com",
+                    "oidc.eks.us-west-2.amazonaws.com/id/0F5496F958BA342AF97XXXXXXXX:sub": "system:serviceaccount:domino-field:jit"
+                }
+            }
+        }
+    ]
+}
+```
 
-1. Create a namespace `domino-field` in which this service will be installed
+Note the OIDC connect provider Id (`0F5496F958BA342AF97XXXXXXXX`) . You will need to replace it with the appropriate one. The one provided is for the cluster aws-iam7653.
+You can find the provider id with the following command (requires the AWS CLI and the `jq` command):
 
-2. Open the file `./helm/jit/values.yaml`
-And change the value for `<EKS_ACCOUNT_NO>`
+```shell
+aws eks describe-cluster --name <CLUSTER_NAME> | jq -r '.cluster.identity.oidc.issuer' | rev | cut -d '/' -f1 | rev
+```
+
+5. Installation of the AWS Secrets and Configuration Provider (ASCP)
+
+Complete documentation can be found [here](https://docs.aws.amazon.com/secretsmanager/latest/userguide/integrating_csi_driver.html#integrating_csi_driver_example_2).
+
+The only modification recommended is to replace the command
+```shell
+helm install -n kube-system csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver
+```
+with
+```shell
+helm install -n kube-system csi-secrets-store \
+  --set syncSecret.enabled=true \
+  --set enableSecretRotation=true \
+  secrets-store-csi-driver/secrets-store-csi-driver
+```
+
+Alternatively you can follow the installation process in the link and run the following
+```shell
+helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+helm install -n kube-system csi-secrets-store \
+  --set syncSecret.enabled=true \
+  --set enableSecretRotation=true \
+  secrets-store-csi-driver/secrets-store-csi-driver
+helm upgrade -n kube-system csi-secrets-store \
+  --set syncSecret.enabled=true \
+  --set enableSecretRotation=true \
+  secrets-store-csi-driver/secrets-store-csi-driver
+helm repo add aws-secrets-manager https://aws.github.io/secrets-store-csi-driver-provider-aws
+helm install -n kube-system secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws
+
+```
+
+
+6. Install the secrets provider in K8s. You will need to change the ARN of the secret
+
 ```yaml
-image:
-  repository: quay.io/domino
-  serverContainer: jit-server
-  clientContainer: jit-client
-  serverAppVersion: v1.0.0-release
-  clientAppVersion: v1.0.0-release
-  pullPolicy: Always
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: jit-data
+  namespace: domino-field
+spec:
+  provider: aws
+  parameters:
+    objects: |
+      - objectName: "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/nuid-SIHUKk"
+        objectType: "secretsmanager"
+        objectAlias: "nuid"
+      - objectName: "arn:aws:secretsmanager:<AWS_REGION>:<EKS_ACCOUNT_NO>:secret:dev/ping/client-R3cHbp"
+        objectType: "secretsmanager"
+        objectAlias: "ping-client"
+```
 
-env:
+## Smoke Test
+
+1. Create a Service Account in K8s as follows 
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
   name: jit
-  service: jit-svc
-  iamrole: arn:aws:iam::<EKS_ACCOUNT_NO>:role/dev-domino-jit-role
-  namespace:
-    platform: domino-platform
-    compute: domino-compute
-    field: domino-field
-
-
+  namespace: domino-field
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<EKS_ACCOUNT_NO>:role/dev-domino-jit-role
 ```
 
-## Helm Install
-
-For helm installation run 
-```shell
-helm install -f ./helm/jit/values.yaml jit helm/jit -n domino-field
+2. Create the following pod 
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  namespace: domino-field
+  labels:
+    app: nginx
+spec:
+  serviceAccountName: jit
+  volumes:
+  - name: jit-data
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: "jit-data"
+  containers:
+  - name: nginx
+    image: nginx
+    volumeMounts:
+      - name: jit-data
+        mountPath: "/etc/config"
 ```
 
-For helm updates run 
-```shell
-helm upgrade -f ./helm/jit/values.yaml jit helm/jit -n domino-field
-```
 
-For helm delete run
-```shell
-helm delete jit -n domino-field
-```
-
-## Inside the Workspace
-
-You should look for environment variables
-```properties
-AWS_SHARED_CREDENTIALS_FILE
-DOMINO_JIT_ENDPOINT
-DOMINO_JIT_REFRESH_ENDPOINT
-```
-Look inside the file `AWS_SHARED_CREDENTIALS_FILE` for credentials associated with your JIT Session
-
-Lastly if you create new JIT sessions when your workspace is running, update the above file by running
+3. Verify that the secrets are loaded 
 
 ```shell
-curl $DOMINO_JIT_REFRESH_ENDPOINT
+kubectl -n domino-field exec -it nginx -c nginx -- ls -l /etc/config/
+
+kubectl -n domino-field  exec -it nginx -c nginx -- cat  /etc/config/nuid/nuid
+
+kubectl -n domino-field  exec -it nginx -c nginx -- cat  /etc/config/ping/ping-client
 ```
 
-## Debugging errors
-
-You can access the JIT client (runs in a side-car container) logs in the workspace by viewing the file
-
+4. Clean up
 ```shell
-/var/log/jit/app.log
+kubectl -n domino-field delete -f .
 ```

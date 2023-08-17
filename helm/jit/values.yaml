@@ -9,9 +9,13 @@ image:
 env:
   name: jit
   service: jit-svc
-  iamrole: arn:aws:iam::<EKS_ACCOUNT_NO>:role/dev-domino-jit-role
+  iamrole: <JIT_SERVER_IAM_ROLE_ARN>
   namespace:
     platform: domino-platform
     compute: domino-compute
     field: domino-field
 
+install_mock_server: false
+mock_server:
+  jitMockContainer: jit-mock
+  jitMockAppVersion: v1.0.0-release  

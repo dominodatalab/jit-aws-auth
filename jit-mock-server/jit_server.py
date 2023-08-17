@@ -40,6 +40,7 @@ def get_aws_credentials(jit_session_id):
     data['secretAccessKey'] = str(random.randint(1,10))
     data['sessionToken'] = str(random.randint(1,10))
     data['expiration'] = str('0')
+    data['projects'] = ['domino1']
     return data
 
 @app.route('/jit-sessions', methods=['GET'])
