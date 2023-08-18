@@ -1,10 +1,10 @@
-{{ if .Values.install_mock_server }}
+{{ if .Values.testing }}
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     app: {{ .Values.env.name }}-mock
-  name: {{ .Values.env.service }}
+  name: {{ .Values.env.service }}-mock
   namespace: {{ .Values.env.namespace.field }}
 spec:
   ports:

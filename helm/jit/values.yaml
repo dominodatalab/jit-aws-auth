@@ -24,7 +24,7 @@ env:
   
 
 
-install_mock_server: false
+testing: false
 mock_server:
   jitMockContainer: jit-mock
-  jitMockAppVersion: v1.0.0-release  
+  jitMockVersion: v1.0.0-release  

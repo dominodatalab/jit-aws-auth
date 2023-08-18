@@ -1,8 +1,8 @@
-{{ if .Values.install_mock_server }}
+{{ if .Values.testing }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.env.name }}-mock-mock
+  name: {{ .Values.env.name }}-mock
   namespace:  {{ .Values.env.namespace.field }}
   labels:
     app: {{ .Values.env.name }}-mock
