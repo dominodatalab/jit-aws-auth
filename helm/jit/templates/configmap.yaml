@@ -8,7 +8,7 @@ data:
     {
       "token_endpoint": "{{ .Values.env.ping.url }}",
       "client_id": "{{ .Values.env.ping.client_id }}",
-      "jit_endpoint": "{{ if .Values.testing }}http://jit-mock{{ else }}{{ .Values.env.jit.url }}{{ end }}"
+      "jit_endpoint": "{{ if .Values.testing }}https://jit-mock{{ else }}{{ .Values.env.jit.url }}{{ end }}"
       "r_username": "{{ .Values.env.jit.username }}",
       "minimum_token_validity_required_in_seconds": "{{ .Values.env.jit.expiry_token_minimum | default 3600 }}"
     }

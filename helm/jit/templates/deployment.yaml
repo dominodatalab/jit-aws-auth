@@ -58,7 +58,7 @@ spec:
           initialDelaySeconds: 20
           failureThreshold: 2
           timeoutSeconds: 5
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
         volumeMounts:
           - name: certs
             mountPath: /ssl
