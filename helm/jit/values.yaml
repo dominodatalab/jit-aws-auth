@@ -10,10 +10,19 @@ env:
   name: jit
   service: jit-svc
   iamrole: <JIT_SERVER_IAM_ROLE_ARN>
+
   namespace:
     platform: domino-platform
     compute: domino-compute
-    field: domino-field
+    field: domino-field 
+  ping:
+    url: "http://localhost" # Ping URL here
+    client_id: "abcd"       # Ping clientID
+  jit:
+    url: "http://localhost" # Jit API Server URL
+    username: "someuser"    # Jit Username
+  
+
 
 install_mock_server: false
 mock_server:

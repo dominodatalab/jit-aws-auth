@@ -6,6 +6,7 @@ import json
 import random
 import requests
 import logging
+from datetime import datetime,timedelta
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -36,10 +37,12 @@ def get_user_name(headers):
 
 def get_aws_credentials(jit_session_id):
     data = json.load(open('/app/aws_creds.json'))
+    # I've hard-coded the expire time as current + 1h.
+    expire_time = datetime.now().astimezone() + timedelta(hours=1)
     data['accessKeyId'] = str(random.randint(1,10))
     data['secretAccessKey'] = str(random.randint(1,10))
     data['sessionToken'] = str(random.randint(1,10))
-    data['expiration'] = str('0')
+    data['expiration'] = expire_time.strftime('%Y-%m-%d %H:%M:%S%z')
     data['projects'] = ['domino1']
     return data
 

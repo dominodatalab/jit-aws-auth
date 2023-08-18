@@ -65,8 +65,10 @@ spec:
             readOnly: true
           - name: logs
             mountPath: /var/log/jit
-          - name: jit-data
+          - name: jit-secret
             mountPath: "/etc/config/jit-secret/"
+          - name: jit-config
+            mountPath: "/etc/config/jit-config/"
       volumes:
         - name: certs
           secret:
@@ -74,9 +76,12 @@ spec:
         - name: logs
           emptyDir:
             sizeLimit: 1000Mi
-        - name: jit-data
+        - name: jit-secret
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: "jit-data"
+              secretProviderClass: "jit-secret"
+        - name: jit-config
+          configMap:
+            name: jit-config
