@@ -21,6 +21,7 @@ env:
   jit:
     url: "http://localhost" # Jit API Server URL
     username: "someuser"    # Jit Username
+    # expiry_token_minimum: 3600 # Minimum token expiry time, defaults to 1h.
   
 
 
