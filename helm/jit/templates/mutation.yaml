@@ -6,6 +6,9 @@ metadata:
 rules:
   - labelSelectors:
       - dominodatalab.com/workload-type in (Workspace)
+      {{- if .Values.users }} 
+      - dominodatalab.com/starting-user-name in ({{ join "," .Values.users }})
+      {{- end }}
     insertVolumeMounts:
       containerSelector:
         - run
@@ -40,7 +43,7 @@ rules:
         - name: AWS_SHARED_CREDENTIALS_FILE
           value: /etc/.aws/credentials
         - name: DOMINO_JIT_ENDPOINT
-          value: "http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"
+          value: "https://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"
         - name: DOMINO_API_PROXY
           value: http://localhost:8899
         - name: DOMINO_JIT_REFRESH_ENDPOINT

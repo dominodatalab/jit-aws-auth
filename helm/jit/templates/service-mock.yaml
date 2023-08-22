@@ -9,8 +9,8 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 80
-    targetPort: 80
+    port: {{ .Values.mock_server.port | default 80 }}
+    targetPort: 8080
   selector:
     app: {{ .Values.env.name }}-mock
   sessionAffinity: None
