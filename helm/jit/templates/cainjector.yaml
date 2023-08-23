@@ -1,3 +1,4 @@
+{{ if .Values.testing }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -19,3 +20,4 @@ metadata:
   name: "selfsigned-{{ .Values.env.name }}"
 spec:
   selfSigned: {}
+{{ end }}  

@@ -6,7 +6,9 @@ metadata:
 spec:
   ingress:
   - ports:
-      - port: 80
+      - port: 8080
+        protocol: TCP
+      - port: 5000
         protocol: TCP
     from:
       - podSelector:
@@ -18,5 +20,8 @@ spec:
   podSelector:
     matchLabels:
       app: {{ .Values.env.name }}
+      {{- if .Values.testing }} 
+      app: {{ .Values.env.name }}-mock
+      {{- end }}      
   policyTypes:
   - Ingress

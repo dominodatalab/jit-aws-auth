@@ -7,7 +7,9 @@ ENV FLASK_ENV=production
 ENV LOG_LEVEL=INFO
 RUN pip install --upgrade pip
 RUN pip install --user -r requirements.txt
+RUN mkdir /var/log/jit && chown 1000 /var/log/jit
 ADD jit-mock-server /app
+RUN chown 1000 /app/*
 USER 1000
 ENTRYPOINT ["python",  "/app/jit_server.py"]
 

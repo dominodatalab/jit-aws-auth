@@ -41,20 +41,20 @@ spec:
         - name: DEFAULT_COMPUTE_NS
           value: {{ .Values.env.namespace.compute }}
         ports:
-        - containerPort: 80
+        - containerPort: 5000
         livenessProbe:
           httpGet:
             path: /healthz
-            port: 80
-            scheme: HTTP
+            port: 5000
+            scheme: HTTPS
           initialDelaySeconds: 20
           failureThreshold: 2
           timeoutSeconds: 5
         readinessProbe:
           httpGet:
             path: /healthz
-            port: 80
-            scheme: HTTP
+            port: 5000
+            scheme: HTTPS
           initialDelaySeconds: 20
           failureThreshold: 2
           timeoutSeconds: 5
@@ -81,7 +81,7 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: "jit-secret"
+              secretProviderClass: "jit-data"
         - name: jit-config
           configMap:
             name: jit-config

@@ -48,7 +48,7 @@ def get_jit_sessions(domino_user_name:str):
     lst_of_jit_sessions = client.get_jit_sessions_by_sub(domino_user_name)
     new_list_of_jit_sessions = {}
     for jit in lst_of_jit_sessions:
-        key = jit['jitSessionId']
+        key = jit['session_id']
         jit_user = jit['userId']
         # only access jit sessions that match pod user
         if jit_user == domino_user_name:
@@ -75,15 +75,15 @@ def create_new_sessions(jit_session_lst):
             config[profile_name]["aws_secret_access_key"] = credentials["secretAccessKey"]
             config[profile_name]["aws_session_token"] = credentials["sessionToken"]
             config[profile_name]["expiration"] = credentials["expiration"]
-            config[profile_name]["jitSessionId"] = jit_session_id
+            config[profile_name]["session_id"] = jit_session_id
     return config
 
 
 
 @app.route('/jit-sessions', methods=['GET'])
-def jit_aws_credentials():
-    logger.info('Fetching Credentials for the user')
+def jit_aws_credentials():    
     user_name = get_user_name(request.headers)
+    logger.info(f'Fetching Credentials for user: {user_name}')
     return create_new_sessions(get_jit_sessions(user_name))
 
 
