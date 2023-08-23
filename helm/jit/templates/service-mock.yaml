@@ -10,7 +10,7 @@ spec:
   ports:
   - name: http
     port: {{ .Values.mock_server.port | default 80 }}
-    targetPort: 8080
+    targetPort: {{ .Values.mock_server.containerPort | default 8080 }}
   selector:
     app: {{ .Values.env.name }}-mock
   sessionAffinity: None

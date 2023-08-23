@@ -40,12 +40,16 @@ spec:
           value: {{ .Values.env.namespace.field }}
         - name: DEFAULT_COMPUTE_NS
           value: {{ .Values.env.namespace.compute }}
+        {{- if .Values.env.containerPort }}
+        - name: APP_PORT
+          value: "{{ .Values.env.containerPort }}"
+        {{- end }}          
         ports:
-        - containerPort: 5000
+        - containerPort: {{ .Values.env.containerPort | default 5000 }}
         livenessProbe:
           httpGet:
             path: /healthz
-            port: 5000
+            port: {{ .Values.env.containerPort | default 5000 }}
             scheme: HTTPS
           initialDelaySeconds: 20
           failureThreshold: 2
@@ -53,7 +57,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /healthz
-            port: 5000
+            port: {{ .Values.env.containerPort | default 5000 }}
             scheme: HTTPS
           initialDelaySeconds: 20
           failureThreshold: 2

@@ -30,4 +30,5 @@ testing: false
 mock_server:
   jitMockContainer: jit-mock
   jitMockVersion: v1.0.0-release
+  containerPort: 8080
   port: 80

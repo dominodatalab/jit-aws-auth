@@ -20,8 +20,6 @@ spec:
     spec:
       securityContext:
           fsGroup: 12574
-      serviceAccountName: {{ .Values.env.name }}-mock
-      automountServiceAccountToken: false
       nodeSelector:
         dominodatalab.com/node-pool: platform
       containers:
@@ -41,12 +39,16 @@ spec:
           value: {{ .Values.env.namespace.field }}
         - name: DEFAULT_COMPUTE_NS
           value: {{ .Values.env.namespace.compute }}
+        {{- if .Values.mock_server.containerPort }}
+        - name: APP_PORT
+          value: "{{ .Values.mock_server.containerPort }}"
+        {{- end }}
         ports:
-        - containerPort: 80
+        - containerPort: {{ .Values.mock_server.containerPort | default 8080 }}
         livenessProbe:
           httpGet:
             path: /healthz
-            port: 80
+            port: {{ .Values.mock_server.containerPort | default 8080 }}
             scheme: HTTP
           initialDelaySeconds: 20
           failureThreshold: 2
@@ -54,7 +56,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /healthz
-            port: 80
+            port: {{ .Values.mock_server.containerPort | default 8080 }}
             scheme: HTTP
           initialDelaySeconds: 20
           failureThreshold: 2

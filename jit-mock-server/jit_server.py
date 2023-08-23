@@ -90,4 +90,4 @@ def healthz():
 
 if __name__ == '__main__':
     debug = os.environ.get("FLASK_ENV") == "development"
-    app.run(debug=True, host='0.0.0.0',port=os.environ.get('PORT_NO',8080))
+    app.run(debug=True, host='0.0.0.0',port=os.environ.get('APP_PORT',8080))

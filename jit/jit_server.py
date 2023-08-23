@@ -100,7 +100,7 @@ if __name__ == '__main__':
     debug = os.environ.get("FLASK_ENV") == "development"
     app.run(
         host=os.environ.get("FLASK_HOST", "0.0.0.0"),
-        port=5000,
+        port=os.environ.get('APP_PORT',5000),
         debug=debug,
         ssl_context=("/ssl/tls.crt", "/ssl/tls.key"),
     )
