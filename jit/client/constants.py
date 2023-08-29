@@ -20,6 +20,7 @@ nuid_cred_file = os.environ.get('NUID_CREDENTIAL_FILE','/etc/config/jit-secret/n
 with open(nuid_cred_file,'r') as f:
     r_password = json.load(f)['password']
 access_token_expiry_time = float(jit_config['minimum_token_validity_required_in_seconds'])
+minimum_token_validity_required_in_seconds = int(jit_config['minimum_token_validity_required_in_seconds'])
 
 certificate_path = os.environ.get('JIT_CERT_FILE','/etc/config/jit-config/certificate.cer')
 

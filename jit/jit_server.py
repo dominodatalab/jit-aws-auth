@@ -39,7 +39,7 @@ def get_user_name(headers):
     endpoint = f"{domino_host}/v4/auth/principal"
     resp = requests.get(endpoint, headers=headers)
     if resp.status_code == 200:
-        return resp.json()["canonicalId"]
+        return resp.json()['canonicalName']
     else:
         return ''
 
