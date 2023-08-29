@@ -7,7 +7,7 @@ rules:
   - labelSelectors:
       - dominodatalab.com/workload-type in (Workspace)
       {{- if .Values.users }} 
-      - dominodatalab.com/starting-user-name in ({{ join "," .Values.users }})
+      - dominodatalab.com/starting-user-username in ({{ join "," .Values.users }})
       {{- end }}
     insertVolumeMounts:
       containerSelector:

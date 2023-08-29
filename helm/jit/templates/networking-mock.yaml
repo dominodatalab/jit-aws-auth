@@ -1,12 +1,13 @@
+{{- if .Values.testing }} 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ .Values.env.name }}
+  name: {{ .Values.env.name }}-mock
   namespace: {{ .Values.env.namespace.field }}
 spec:
   ingress:
   - ports:
-      - port: 5000
+      - port: 8080
         protocol: TCP
     from:
       - podSelector:
@@ -17,6 +18,7 @@ spec:
               domino-compute: 'true'
   podSelector:
     matchLabels:
-      app: {{ .Values.env.name }}
+      app: {{ .Values.env.name }}-mock
   policyTypes:
   - Ingress
+{{- end }}
