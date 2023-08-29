@@ -16,6 +16,11 @@ kubectl get namespace domino-field
 kubectl create namespace domino-field
 ```
 
+If the namespace exists, ensure that it has a label of `domino-compute=true`.
+```shell
+kubectl label ns domino-field domino-compute=true
+```
+
 2. Create two secrets in the AWS Secrets 
    a. `dev/nuid`
    b. `dev/ping/client`
