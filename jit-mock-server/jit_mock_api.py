@@ -40,63 +40,90 @@ log = logging.getLogger("domino-jit")
 #         return ''
 
 
-def get_aws_credentials(session_id):
+def get_aws_credentials(session_id,project_name):
     # I've hard-coded the expire time as current + 1h.
     expire_time = datetime.now().astimezone() + timedelta(hours=1)
     data = {}
     data['Status'] = 'Success'
-    data['accessKeyId'] = str(random.randint(1,10))
-    data['secretAccessKey'] = str(random.randint(1,10))
-    data['sessionToken'] = str(random.randint(1,10))
+    data['accessKeyId'] = ''.join(random.choices(string.ascii_uppercase, k=10))
+    data['secretAccessKey'] = ''.join(random.choices(string.ascii_letters + string.digits, k=20))
+    data['sessionToken'] = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
     data['session_id'] = session_id
     data['expiration'] = expire_time.strftime('%Y-%m-%d %H:%M:%S%z')
-    data['projects'] = ['domino1']
+    data['projects'] = [project_name] or ['default']
     return data
 
-def create_jit_user_session(username):
+def create_jit_user_session(user_data):
     key_list = ['active','alias','sub','userId','creationTime','expirationTime','session_id']
     session = { key:None for key in key_list}
     session['active'] = 'true'
-    session['sub'] = username
-    session['userId'] = username
+    session['sub'] = user_data['userId']
+    session['userId'] = user_data['userId']
+    session['project'] = user_data['projectName']
     session['creationTime'] = datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S%z')
     session_expiry = datetime.now().astimezone() + timedelta(hours=1)
     session['expirationTime'] = session_expiry.strftime('%Y-%m-%d %H:%M:%S%z')
     session_uid = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    group_short = ''.join(random.choices(string.ascii_uppercase, k=3))
-    session['session_id'] = f'jit-{username}-{group_short}-{session_uid}'
+    group_short = user_data.get('applicationShortName',''.join(random.choices(string.ascii_uppercase, k=3)))
+    session['session_id'] = f'jit-{user_data["userId"]}-{group_short}-{session_uid}'
     return session
 
 # Add'l route below based on ../jit/client/resources/sessions.py
 @app.route('/jit-sessions', methods=['GET'])
-@app.route('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions',methods=['GET','POST'])
+@app.route('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions',methods=['GET'])
 def get_jit_sessions():
+    domino_user_name = request.args.get('sub') # Ref: ../jit/client/resources/sessions.py
+    user_project = request.args.get('project')
+    logger.debug(f'Fetching JIT Sessions for Domino User {domino_user_name}')
+    with open(session_file) as db_file:
+        data = json.load(db_file)
+    user_sessions = [session for session in data if session['userId'] == domino_user_name and session['project'] == user_project]
+    return user_sessions
+
+@app.route('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions/<jit_session_id>',methods=['GET'])
+def get_jit_sessions_by_id(jit_session_id):
     domino_user_name = request.args.get('sub') # Ref: ../jit/client/resources/sessions.py
     logger.debug(f'Fetching JIT Sessions for Domino User {domino_user_name}')
     with open(session_file) as db_file:
         data = json.load(db_file)
-    if request.method == 'POST' or (request.method == 'GET' and domino_user_name not in [session['userId'] for session in data]):
-        new_user_session = create_jit_user_session(domino_user_name)
-        data.append(new_user_session)
-        with open(session_file,'w') as db_file:
-            json.dump(data,db_file,indent=4,separators=(',',': '))
-        db_file.close
-    user_sessions = [session for session in data if session['userId'] == domino_user_name]
-    return {'domino_user':domino_user_name, 'jit-sessions':user_sessions}
+    user_sessions = [session for session in data if session['session_id'] == jit_session_id]
+    return user_sessions
 
 @app.route('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions/<jit_session_id>/aws-credentials',methods=['GET'])
-def get_jit_aws_creds(jit_session_id):
+def get_jit_aws_creds(jit_session_id,jit_project=None):
     logger.debug(f'Fetching AWS Credentials for session {jit_session_id}')
     with open(aws_creds_file) as cred_db_file:
         cred_data = json.load(cred_db_file)
-    if jit_session_id not in [session['session_id'] for session in cred_data]:
-        new_aws_cred = get_aws_credentials(jit_session_id)
+    session_list = [session['session_id'] for session in cred_data]
+    if jit_session_id not in session_list:
+        new_aws_cred = get_aws_credentials(session_id=jit_session_id,project_name=jit_project)
         cred_data.append(new_aws_cred)
         with open(aws_creds_file,'w') as cred_db_file:
             json.dump(cred_data,cred_db_file,indent=4,separators=(',',': '))
-    cred_db_file.close
-    aws_creds = [credential for credential in cred_data if credential['session_id'] == jit_session_id]
+    aws_creds = [credential for credential in cred_data if credential['session_id'] == jit_session_id][0] # We're expecting only one credential per session, and only want to return one credential per session-id call
     return aws_creds
+
+@app.route('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions',methods=['POST'])
+def new_jit_session():
+    # Expected JSON data: 
+    # {
+    # "eventType":"createJitProjectSession",
+    # "applicationShortName": str,
+    # "lifecycle": str,
+    # "projectName": str,
+    # "userId": str,
+    # "userEmail": str
+    # }    
+    user_data = request.get_json()
+    logger.debug(f'Creating JIT Session for Domino User {user_data["userId"]} with Project {user_data["projectName"]}')
+    with open(session_file) as db_file:
+        data = json.load(db_file)
+    new_user_session = create_jit_user_session(user_data)
+    data.append(new_user_session)
+    with open(session_file,'w') as db_file:
+        json.dump(data,db_file,indent=4,separators=(',',': '))
+    session_aws_creds = get_jit_aws_creds(jit_session_id=new_user_session['session_id'],jit_project=new_user_session['project'])
+    return session_aws_creds
 
 # Based on https://www.pingidentity.com/content/dam/developer/downloads/Resources/OAuth2%20Developers%20Guide%20(1).pdf
 @app.route('/this_isnt_a_pingfed_token',methods=['GET','POST'])

@@ -50,7 +50,7 @@ spec:
             path: /healthz
             port: {{ .Values.mock_server.containerPort | default 8080 }}
             scheme: HTTP
-          initialDelaySeconds: 20
+          initialDelaySeconds: 10
           failureThreshold: 2
           timeoutSeconds: 5
         readinessProbe:
@@ -58,7 +58,7 @@ spec:
             path: /healthz
             port: {{ .Values.mock_server.containerPort | default 8080 }}
             scheme: HTTP
-          initialDelaySeconds: 20
+          initialDelaySeconds: 10
           failureThreshold: 2
           timeoutSeconds: 5
         imagePullPolicy: Always
