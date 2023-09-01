@@ -62,8 +62,7 @@ def verify_user(headers):
 #     session_cred = client.get_aws_credentials(jit_session_id)
 #     return session_cred
 
-def create_new_session(user_jwt):
-    user_project_list = user_jwt['fm_projects']
+def create_new_sessions(user_id:str,user_mail:str,user_project_list:[]) -> []:
     key_list = ['eventType','applicationShortName','lifecycle','projectName','userId','userEmail']
     user_project_data = []
     user_session_list = []
@@ -71,8 +70,8 @@ def create_new_session(user_jwt):
         session = { key:None for key in key_list }
         session['eventType'] = 'createJitProjectSession'
         session['projectName'] = project
-        session['userId'] = user_jwt['preferred_user_name']
-        session['userEmail'] = user_jwt['email']
+        session['userId'] = user_id
+        session['userEmail'] = user_mail
         user_project_data.append(session)
     
     for project in user_project_data:
@@ -82,7 +81,7 @@ def create_new_session(user_jwt):
     return user_session_list
 
 
-
+# The configparser logic has been moved to the client. The code is left here for reference.
 # def create_new_sessions(jit_session_lst):
 #     config = configparser.ConfigParser()
 #     jit_session_keys = jit_session_lst.keys()
@@ -110,12 +109,10 @@ def jit_aws_credentials(project=None,user_jwt=None):
         if project:
            user['fm_projects'] = [project]
         logger.info(f'Fetching Credentials for user: {user["preferred_user_name"]}')
-        session_list = []
-        for project in user['fm_projects']:
-            session_for_project = client.get_jit_sessions_by_sub(domino_user_name=user['preferred_user_name'],project_name=project)
-            session_list.append(session_for_project)
-        new_jit_session_list = create_new_session(session_list)
-        return new_jit_session_list
+        user_id = user['preferred_user_name']
+        user_mail = user['email']
+        session_list = create_new_sessions(user_id=user_id,user_mail=user_mail,user_project_list=user['fm_projects'])
+        return session_list
     else:
         abort(401,description="Invalid User JWT")
 
