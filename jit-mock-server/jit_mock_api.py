@@ -122,6 +122,7 @@ def new_jit_session():
     data.append(new_user_session)
     with open(session_file,'w') as db_file:
         json.dump(data,db_file,indent=4,separators=(',',': '))
+    # Per FM/PT, a POST to this endpoint doesn't return a JIT session, but rather the AWS credentials for the JIT session.
     session_aws_creds = get_jit_aws_creds(jit_session_id=new_user_session['session_id'],jit_project=new_user_session['project'])
     return session_aws_creds
 

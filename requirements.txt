@@ -3,3 +3,4 @@ requests
 configparser
 boto3
 gunicorn
+PyJWT
