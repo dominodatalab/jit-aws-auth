@@ -7,7 +7,11 @@ import logging
 import traceback
 import configparser
 
-log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + 'app.log'
+log_file = os.environ.get("JIT_LOG_FOLDER", '/var/log/jit/') + 'app.log'
+aws_credentials_file = os.environ["AWS_SHARED_CREDENTIALS_FILE",'/etc/.aws/credentials']
+service_endpoint = os.environ["DOMINO_JIT_ENDPOINT",'https://jit-svc.domino-field']
+token_min_expiry_in_seconds = os.environ.get['TOKEN_MIN',300]
+poll_jit_interval = os.environ.get['POLL_INTERVAL',60]
 session_list = []
 
 lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
@@ -29,19 +33,21 @@ logger.addHandler(handler)
 # def healthz():
 #     return "healthy"
 
-def write_credentials_file(aws_credentials,cred_file_path):
+def write_credentials_file(aws_credentials:[],cred_file_path):
     config = configparser.ConfigParser()
     config.read(cred_file_path)
     for cred in aws_credentials:
         profile_name = cred['projects'][0]
-        logger.info('adding aws cli credentials profile', extra={'details': {'profile': profile_name, 'jitSessionId': cred["session_id"]}})
         if not config.has_section(profile_name): 
             config.add_section(profile_name)
+            logger.info('Adding AWS cli credentials profile', extra={'details': {'profile': profile_name, 'jitSessionId': cred["session_id"], 'project': cred["projects"]}})
+        logger.info('Adding AWS cli credentials', extra={'details': {'profile': profile_name, 'jitSessionId': cred["session_id"], 'AWS Key ID':cred["aws_access_key_id"]}})
         config.set(profile_name,"aws_access_key_id",cred["accessKeyId"])
         config.set(profile_name,"aws_secret_access_key",cred["secretAccessKey"])
         config.set(profile_name,"aws_session_token",cred["sessionToken"])
         config.set(profile_name,"expiration",cred["expiration"])
         config.set(profile_name,"jit_session_id",cred["session_id"])
+        config.set(profile_name,"jit_project",profile_name)
     with open(cred_file_path, "w") as f:
         config.write(f)
         
@@ -78,7 +84,7 @@ def get_domino_user_identity():
 
 def check_credential_expiration(credential_list:[]):
     now = datetime.datetime.now()
-    min_expiry_threshold = datetime.timedelta(seconds=os.environ.get['TOKEN_MIN',300])
+    min_expiry_threshold = datetime.timedelta(seconds=token_min_expiry_in_seconds)
     min_expiry_time = now + min_expiry_threshold
     expiring_creds = [cred for cred in credential_list if datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z') < min_expiry_time ]
     return expiring_creds
@@ -86,16 +92,16 @@ def check_credential_expiration(credential_list:[]):
 def refresh_jit_credentials(project=None):
     global log_file
     if project:
-        service_endpoint = f'{os.environ.get["DOMINO_JIT_ENDPOINT"]}/{project}'
+        url = f'{service_endpoint}/{project}'
     else:
-        service_endpoint = os.environ.get["DOMINO_JIT_ENDPOINT"]
-    logger.warning(service_endpoint)
+        url = service_endpoint
+    logger.warning(url)
     user_jwt = get_domino_user_identity()
     headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer " + user_jwt,
     }
-    resp = requests.get(service_endpoint, headers=headers, json={})
+    resp = requests.get(url, headers=headers, json={})
         # Writing to file
     logger.warning(resp.status_code)
     logger.warning(resp.content)
@@ -103,10 +109,24 @@ def refresh_jit_credentials(project=None):
     if resp.status_code == 200:
         return resp.json()
     else:
-        result = f'Error calling {service_endpoint}. Check log file {log_file} for details.'
+        result = f'Error calling {url}. Check log file {log_file} for details.'
         logger.error(result)
 
 if __name__ == "__main__":
+    while True:
+        if os.path.isfile(aws_credentials_file) and os.path.getsize(aws_credentials_file) > 0:
+            existing_creds = read_credentials_file(aws_credentials_file)
+            expiring_creds = check_credential_expiration(existing_creds)
+            if expiring_creds.len() > 0:
+                new_creds = []
+                for project in expiring_creds['jit_project']:                
+                    new_creds.append(refresh_jit_credentials(project))
+                write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
+        else:
+            new_creds = refresh_jit_credentials()
+            write_credentials_file(new_creds)
+        time.sleep(poll_jit_interval)
+                
     refresh_jit_credentials()
     port_no = int(os.environ.get('JIT_CLIENT_PROXY_PORT','5003'))
     app.run(debug=True, host='0.0.0.0', port=port_no)
