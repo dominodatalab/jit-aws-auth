@@ -107,11 +107,11 @@ def jit_aws_credentials(project=None,user_jwt=None):
     if verify_user(request.headers):
         user = jwt.decode(user_jwt,options={"verify_signature": False})
         if project:
-           user['fm_projects'] = [project]
+           user[constants.fm_projects_attribute] = [project]
         logger.info(f'Fetching Credentials for user: {user["preferred_user_name"]}')
         user_id = user['preferred_user_name']
         user_mail = user['email']
-        session_list = create_new_sessions(user_id=user_id,user_mail=user_mail,user_project_list=user['fm_projects'])
+        session_list = create_new_sessions(user_id=user_id,user_mail=user_mail,user_project_list=user[constants.fm_projects_attribute])
         return session_list
     else:
         abort(401,description="Invalid User JWT")
