@@ -8,10 +8,10 @@ import traceback
 import configparser
 
 log_file = os.environ.get("JIT_LOG_FOLDER", '/var/log/jit/') + 'app.log'
-aws_credentials_file = os.environ["AWS_SHARED_CREDENTIALS_FILE",'/etc/.aws/credentials']
-service_endpoint = os.environ["DOMINO_JIT_ENDPOINT",'https://jit-svc.domino-field']
-token_min_expiry_in_seconds = os.environ.get['TOKEN_MIN',300]
-poll_jit_interval = os.environ.get['POLL_INTERVAL',60]
+aws_credentials_file = os.environ.get("AWS_SHARED_CREDENTIALS_FILE",'/etc/.aws/credentials')
+service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT",'https://jit-svc.domino-field')
+token_min_expiry_in_seconds = os.environ.get('TOKEN_MIN',300)
+poll_jit_interval = os.environ.get('POLL_INTERVAL',60)
 session_list = []
 
 lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
@@ -59,6 +59,8 @@ def read_credentials_file(cred_file_path):
     return config_dict
 
 def get_domino_user_identity():
+    success = False
+    retries = 5
     while (not success) and retries > 0 :
         try:
             token_endpoint = os.environ.get('DOMINO_API_PROXY')

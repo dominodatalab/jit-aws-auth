@@ -30,11 +30,16 @@ rules:
             mountPath: /var/log/jit/
           - mountPath: /etc/.aws/
             name: jit-aws-creds
+          - name: certs
+            mountPath: /etc/ssl/jit
     insertVolumes:
       - emptyDir: {}
         name: jit-aws-creds
       - emptyDir: {}
         name: log-volume
+      - secret:
+          name: certs
+        name: "{{ .Values.env.name }}-certs"
     modifyEnv:
       containerSelector:
         - run
@@ -48,5 +53,7 @@ rules:
           value: http://localhost:8899
         - name: DOMINO_JIT_REFRESH_ENDPOINT
           value: "http://localhost:"
+        - name: REQUESTS_CA_BUNDLE
+          value: /etc/ssl/jit/ca.crt
 
 

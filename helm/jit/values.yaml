@@ -24,6 +24,10 @@ env:
     url: "http://localhost" # Jit API Server URL
     username: "someuser"    # Jit Username
     # expiry_token_minimum: 30 # Minimum token expiry time, defaults to 10 sec.
+  # tls: # File paths for the various TLS-related artifacts
+  #   jit_tls_cert_file:
+  #   jit_tls_cert_key:
+  #   jit_tls_cert_ca:    
   
 # users: # This key is for limiting the use of the JIT service to specific users, for easier testing.
   # - someuser
