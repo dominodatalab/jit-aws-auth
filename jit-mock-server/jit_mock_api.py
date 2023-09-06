@@ -15,6 +15,7 @@ app.config["DEBUG"] = True
 log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + 'app.log'
 session_file = os.environ.get("JIT_SESSION_FILE",'/app/jit_sessions.json')
 aws_creds_file = os.environ.get("JIT_CREDS_FILE",'/app/aws_creds.json')
+cred_lifetime_seconds = int(os.environ.get("CRED_LIFETIME",3600))
 logger = logging.getLogger("jit-server")
 lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
 logging.basicConfig(
@@ -42,7 +43,7 @@ log = logging.getLogger("domino-jit")
 
 def get_aws_credentials(session_id,project_name):
     # I've hard-coded the expire time as current + 1h.
-    expire_time = datetime.now().astimezone() + timedelta(hours=1)
+    expire_time = datetime.now().astimezone() + timedelta(seconds=cred_lifetime_seconds)
     data = {}
     data['Status'] = 'Success'
     data['accessKeyId'] = ''.join(random.choices(string.ascii_uppercase, k=22))

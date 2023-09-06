@@ -42,8 +42,8 @@ def write_credentials_file(aws_credentials:[],cred_file_path):
         profile_name = cred['projects'][0]
         if not config.has_section(profile_name): 
             config.add_section(profile_name)
-            logger.info('Adding AWS cli credentials profile', extra={'details': {'profile': profile_name, 'jitSessionId': cred["session_id"], 'project': cred["projects"]}})
-        logger.info('Adding AWS cli credentials', extra={'details': {'profile': profile_name, 'jitSessionId': cred["session_id"], 'AWS Key ID':cred["accessKeyId"]}})
+            logger.info(f'Adding AWS cli credentials profile {profile_name}')
+        logger.info(f'Adding AWS cli credentials: profile: {profile_name}, jitSessionId: {cred["session_id"]}, AWS Key ID: {cred["accessKeyId"]}')
         config.set(profile_name,"aws_access_key_id",cred["accessKeyId"])
         config.set(profile_name,"aws_secret_access_key",cred["secretAccessKey"])
         config.set(profile_name,"aws_session_token",cred["sessionToken"])
@@ -87,35 +87,45 @@ def get_domino_user_identity():
     return token
 
 def check_credential_expiration(credential_list:[]):
+    logger.info("Checking for credential expiry")
     min_expiry_time = datetime.now().astimezone() + timedelta(seconds=token_min_expiry_in_seconds)
     min_expiry_time_str = min_expiry_time.strftime('%Y-%m-%d %H:%M:%S%z')
     expiring_creds = [cred for cred in credential_list if datetime.astimezone(datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z')) < min_expiry_time ]
     for cred in expiring_creds:
-        logger.info(f'Credential for {cred["jit_project"]} is expiring soon: Cred expiry {cred["expiration"]}, Min expiry time {min_expiry_time_str}')
+        logger.info(f'Credential for project {cred["jit_project"]} is expiring soon: Cred expiry {cred["expiration"]}, Min expiry time {min_expiry_time_str}')
     return expiring_creds
 
 def refresh_jit_credentials(project=None):
     global log_file
+    success = False
+    retry_wait = 5
+    retry_count = 10
     if project:
         url = f'{service_endpoint}/{project}'
     else:
         url = service_endpoint
-    logger.warning(url)
     user_jwt = get_domino_user_identity()
     headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer " + user_jwt,
     }
-    resp = requests.get(url, headers=headers, json={},verify=cacert_path)
+    logger.info(f'Refreshing credentials from JIT URL: {url}')
+    while (not success):
+        try:
+            resp = requests.get(url, headers=headers, json={},verify=cacert_path)
+            logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
+            logger.debug(f'API Response: {resp.content}')
+            if resp.status_code == 200:
+                creds = resp.json()
+                success = True
+        except Exception:
+            logger.error(f'Exception: {retry_count}')
+            logger.error(f'Error calling {url}. Check log file {log_file} for details.')
+            retry_count -= 1
+            time.sleep(retry_wait)
+            retry_wait = retry_wait * 6
         # Writing to file
-    logger.warning(resp.status_code)
-    logger.warning(resp.content)
-    # logger.warning(resp.text)
-    if resp.status_code == 200:
-        return resp.json()
-    else:
-        result = f'Error calling {url}. Check log file {log_file} for details.'
-        logger.error(result)
+    return creds
 
 if __name__ == "__main__":
     while True:
@@ -124,8 +134,9 @@ if __name__ == "__main__":
             expiring_creds = check_credential_expiration(existing_creds)
             if len(expiring_creds) > 0:
                 new_creds = []
-                for project in expiring_creds['jit_project']:                
-                    new_creds.append(refresh_jit_credentials(project))
+                for cred in expiring_creds:
+                    refreshed_cred = refresh_jit_credentials(cred['jit_project'])
+                    new_creds.append(refreshed_cred)
                 write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
         else:
             new_creds = refresh_jit_credentials()
