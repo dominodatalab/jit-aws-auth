@@ -76,7 +76,7 @@ def create_new_sessions(user_id:str,user_mail:str,user_project_list:[]) -> []:
     
     for project in user_project_data:
         session = client.put_sessions(project)
-        user_session_list.append(session)
+        user_session_list.append(session.json())
     
     return user_session_list
 
@@ -103,13 +103,13 @@ def create_new_sessions(user_id:str,user_mail:str,user_project_list:[]) -> []:
 
 @app.route('/jit-sessions', methods=['GET'])
 def jit_aws_credentials(project=None,user_jwt=None):
-    user_jwt = user_jwt or request.headers['Authorization'].split(" ",1)
+    user_jwt = user_jwt or request.headers['Authorization'].split()[1]
     if verify_user(request.headers):
         user = jwt.decode(user_jwt,options={"verify_signature": False})
         if project:
            user[constants.fm_projects_attribute] = [project]
-        logger.info(f'Fetching Credentials for user: {user["preferred_user_name"]}')
-        user_id = user['preferred_user_name']
+        logger.info(f'Fetching Credentials for user: {user["preferred_username"]}')
+        user_id = user['preferred_username']
         user_mail = user['email']
         session_list = create_new_sessions(user_id=user_id,user_mail=user_mail,user_project_list=user[constants.fm_projects_attribute])
         return session_list

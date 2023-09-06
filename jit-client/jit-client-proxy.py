@@ -42,7 +42,7 @@ def write_credentials_file(aws_credentials:[],cred_file_path):
         if not config.has_section(profile_name): 
             config.add_section(profile_name)
             logger.info('Adding AWS cli credentials profile', extra={'details': {'profile': profile_name, 'jitSessionId': cred["session_id"], 'project': cred["projects"]}})
-        logger.info('Adding AWS cli credentials', extra={'details': {'profile': profile_name, 'jitSessionId': cred["session_id"], 'AWS Key ID':cred["aws_access_key_id"]}})
+        logger.info('Adding AWS cli credentials', extra={'details': {'profile': profile_name, 'jitSessionId': cred["session_id"], 'AWS Key ID':cred["accessKeyId"]}})
         config.set(profile_name,"aws_access_key_id",cred["accessKeyId"])
         config.set(profile_name,"aws_secret_access_key",cred["secretAccessKey"])
         config.set(profile_name,"aws_session_token",cred["sessionToken"])
@@ -127,7 +127,7 @@ if __name__ == "__main__":
                 write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
         else:
             new_creds = refresh_jit_credentials()
-            write_credentials_file(new_creds)
+            write_credentials_file(new_creds,aws_credentials_file)
         time.sleep(poll_jit_interval)
                 
     refresh_jit_credentials()

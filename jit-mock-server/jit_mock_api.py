@@ -45,8 +45,8 @@ def get_aws_credentials(session_id,project_name):
     expire_time = datetime.now().astimezone() + timedelta(hours=1)
     data = {}
     data['Status'] = 'Success'
-    data['accessKeyId'] = ''.join(random.choices(string.ascii_uppercase, k=10))
-    data['secretAccessKey'] = ''.join(random.choices(string.ascii_letters + string.digits, k=20))
+    data['accessKeyId'] = ''.join(random.choices(string.ascii_uppercase, k=22))
+    data['secretAccessKey'] = ''.join(random.choices(string.ascii_letters + string.digits, k=40))
     data['sessionToken'] = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
     data['session_id'] = session_id
     data['expiration'] = expire_time.strftime('%Y-%m-%d %H:%M:%S%z')
