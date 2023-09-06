@@ -6,6 +6,7 @@ import time,datetime
 import logging
 import traceback
 import configparser
+from datetime import datetime,timedelta
 
 log_file = os.environ.get("JIT_LOG_FOLDER", '/var/log/jit/') + 'app.log'
 aws_credentials_file = os.environ.get("AWS_SHARED_CREDENTIALS_FILE",'/etc/.aws/credentials')
@@ -86,10 +87,11 @@ def get_domino_user_identity():
     return token
 
 def check_credential_expiration(credential_list:[]):
-    now = datetime.datetime.now()
-    min_expiry_threshold = datetime.timedelta(seconds=token_min_expiry_in_seconds)
-    min_expiry_time = now + min_expiry_threshold
-    expiring_creds = [cred for cred in credential_list if datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z') < min_expiry_time ]
+    min_expiry_time = datetime.now().astimezone() + timedelta(seconds=token_min_expiry_in_seconds)
+    min_expiry_time_str = min_expiry_time.strftime('%Y-%m-%d %H:%M:%S%z')
+    expiring_creds = [cred for cred in credential_list if datetime.astimezone(datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z')) < min_expiry_time ]
+    for cred in expiring_creds:
+        logger.info(f'Credential for {cred["jit_project"]} is expiring soon: Cred expiry {cred["expiration"]}, Min expiry time {min_expiry_time_str}')
     return expiring_creds
 
 def refresh_jit_credentials(project=None):
@@ -120,7 +122,7 @@ if __name__ == "__main__":
         if os.path.isfile(aws_credentials_file) and os.path.getsize(aws_credentials_file) > 0:
             existing_creds = read_credentials_file(aws_credentials_file)
             expiring_creds = check_credential_expiration(existing_creds)
-            if expiring_creds.len() > 0:
+            if len(expiring_creds) > 0:
                 new_creds = []
                 for project in expiring_creds['jit_project']:                
                     new_creds.append(refresh_jit_credentials(project))
