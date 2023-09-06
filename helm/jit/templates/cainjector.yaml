@@ -5,6 +5,7 @@ metadata:
   name: "{{ .Values.env.name }}-certificate"
   namespace: {{ .Values.env.namespace.field }}
 spec:
+  isCA: true
   secretName: "{{ .Values.env.name }}-certs"
   dnsNames:
   - "{{ .Values.env.service }}"

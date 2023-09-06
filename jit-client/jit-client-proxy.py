@@ -12,6 +12,7 @@ aws_credentials_file = os.environ.get("AWS_SHARED_CREDENTIALS_FILE",'/etc/.aws/c
 service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT",'https://jit-svc.domino-field')
 token_min_expiry_in_seconds = os.environ.get('TOKEN_MIN',300)
 poll_jit_interval = os.environ.get('POLL_INTERVAL',60)
+cacert_path = os.environ.get('REQUESTS_CACERT')
 session_list = []
 
 lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
@@ -103,7 +104,7 @@ def refresh_jit_credentials(project=None):
             "Content-Type": "application/json",
             "Authorization": "Bearer " + user_jwt,
     }
-    resp = requests.get(url, headers=headers, json={})
+    resp = requests.get(url, headers=headers, json={},verify=cacert_path)
         # Writing to file
     logger.warning(resp.status_code)
     logger.warning(resp.content)

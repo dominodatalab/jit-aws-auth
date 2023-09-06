@@ -11,5 +11,3 @@ RUN mkdir /var/log/jit && chown 1000 /var/log/jit
 ADD jit-client /app
 USER 1000
 ENTRYPOINT ["python", "/app/jit-client-proxy.py" ]
-
-
