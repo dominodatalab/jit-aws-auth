@@ -9,9 +9,32 @@ image:
 env:
   name: jit
   service: jit-svc
-  iamrole: arn:aws:iam::<EKS_ACCOUNT_NO>:role/dev-domino-jit-role
+  iamrole: <JIT_SERVER_IAM_ROLE_ARN>
+  # projects_attribute_name: some_attribute_name # For setting a custom keycloak-mapped attribute that ties to the groups/projects SAML assertion.
+                                                 # Defaults to "fm_projects."
+
   namespace:
     platform: domino-platform
     compute: domino-compute
-    field: domino-field
+    field: domino-field 
+  ping:
+    url: "http://localhost" # Ping URL here
+    client_id: "abcd"       # Ping clientID
+  jit:
+    url: "http://localhost" # Jit API Server URL
+    username: "someuser"    # Jit Username
+    # expiry_token_minimum: 30 # Minimum token expiry time, defaults to 10 sec.
+  # tls: # File paths for the various TLS-related artifacts
+  #   jit_tls_cert_file:
+  #   jit_tls_cert_key:
+  #   jit_tls_cert_ca:    
+  
+# users: # This key is for limiting the use of the JIT service to specific users, for easier testing.
+  # - someuser
 
+testing: false
+mock_server:
+  jitMockContainer: jit-mock
+  jitMockVersion: v1.0.0-release
+  containerPort: 8080
+  port: 80

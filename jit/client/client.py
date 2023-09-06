@@ -102,8 +102,8 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
             str: The access token
         """
         now = datetime.datetime.now()
-        if self._access_token_expiry_time and self._access_token_expiry_time - now > datetime.timedelta(
-                seconds=constants.minimum_token_validity_required_in_seconds) and self._access_token:
+        if self._access_token and self._access_token_expiry_time and self._access_token_expiry_time - now > datetime.timedelta(
+                seconds=constants.minimum_token_validity_required_in_seconds):
             return self._access_token
 
         if self._refresh_token:

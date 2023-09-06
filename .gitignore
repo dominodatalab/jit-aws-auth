@@ -164,3 +164,5 @@ jit_install/
 helm/jit/values.yaml
 helm/jit/templates/serviceaccount.yaml
 helm/jit/jit_secrets_provider.yaml
+helm/jit/certificate.crt
+helm/jit/values*ddl*.yaml

@@ -1,30 +1,29 @@
+{{ if .Values.testing }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.env.name }}
+  name: {{ .Values.env.name }}-mock
   namespace:  {{ .Values.env.namespace.field }}
   labels:
-    app: {{ .Values.env.name }}
+    app: {{ .Values.env.name }}-mock
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Values.env.name }}
+      app: {{ .Values.env.name }}-mock
   template:
     metadata:
       labels:
-        app: {{ .Values.env.name }}
+        app: {{ .Values.env.name }}-mock
         nucleus-client: "true"
         security.istio.io/tlsMode: "istio"
     spec:
       securityContext:
           fsGroup: 12574
-      serviceAccountName: {{ .Values.env.name }}
-      automountServiceAccountToken: false
       nodeSelector:
         dominodatalab.com/node-pool: platform
       containers:
-      - name: {{ .Values.env.name }}
+      - name: {{ .Values.env.name }}-mock
         securityContext:
           runAsUser: 1000
           runAsGroup: 1000
@@ -32,7 +31,7 @@ spec:
           capabilities:
             drop:
               - all
-        image: "{{ .Values.image.repository }}/{{ .Values.image.serverContainer }}:{{ .Values.image.serverAppVersion }}"
+        image: "{{ .Values.image.repository }}/{{ .Values.mock_server.jitMockContainer }}:{{ .Values.mock_server.jitMockVersion }}"
         env:
         - name: DOMINO_USER_HOST
           value: "http://nucleus-frontend.{{ .Values.env.namespace.platform }}"
@@ -40,39 +39,35 @@ spec:
           value: {{ .Values.env.namespace.field }}
         - name: DEFAULT_COMPUTE_NS
           value: {{ .Values.env.namespace.compute }}
-        {{- if .Values.env.containerPort }}
+        {{- if .Values.mock_server.containerPort }}
         - name: APP_PORT
-          value: "{{ .Values.env.containerPort }}"
-        {{- end }}          
+          value: "{{ .Values.mock_server.containerPort }}"
+        {{- end }}
         ports:
-        - containerPort: {{ .Values.env.containerPort | default 5000 }}
+        - containerPort: {{ .Values.mock_server.containerPort | default 8080 }}
         livenessProbe:
           httpGet:
             path: /healthz
-            port: {{ .Values.env.containerPort | default 5000 }}
-            scheme: HTTPS
-          initialDelaySeconds: 20
+            port: {{ .Values.mock_server.containerPort | default 8080 }}
+            scheme: HTTP
+          initialDelaySeconds: 10
           failureThreshold: 2
           timeoutSeconds: 5
         readinessProbe:
           httpGet:
             path: /healthz
-            port: {{ .Values.env.containerPort | default 5000 }}
-            scheme: HTTPS
-          initialDelaySeconds: 20
+            port: {{ .Values.mock_server.containerPort | default 8080 }}
+            scheme: HTTP
+          initialDelaySeconds: 10
           failureThreshold: 2
           timeoutSeconds: 5
-        imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+        imagePullPolicy: Always
         volumeMounts:
           - name: certs
             mountPath: /ssl
             readOnly: true
           - name: logs
             mountPath: /var/log/jit
-          - name: jit-secret
-            mountPath: "/etc/config/jit-secret/"
-          - name: jit-config
-            mountPath: "/etc/config/jit-config/"
       volumes:
         - name: certs
           secret:
@@ -80,12 +75,4 @@ spec:
         - name: logs
           emptyDir:
             sizeLimit: 1000Mi
-        - name: jit-secret
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: "jit-data"
-        - name: jit-config
-          configMap:
-            name: jit-config
+{{ end }}              

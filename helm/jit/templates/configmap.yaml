@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jit-config
+  namespace: {{ .Values.env.namespace.field }}
+data:
+  jit.json: |-
+    {
+      "token_endpoint": "{{ if .Values.testing }}http://jit-svc-mock/this_isnt_a_pingfed_token{{ else }}{{ .Values.env.ping.url }}{{ end }}",
+      "client_id": "{{ .Values.env.ping.client_id }}",
+      "jit_endpoint": "{{ if .Values.testing }}http://jit-svc-mock{{ else }}{{ .Values.env.jit.url }}{{ end }}",
+      "r_username": "{{ .Values.env.jit.username }}",
+      "minimum_token_validity_required_in_seconds": "{{ .Values.env.jit.expiry_token_minimum | default 30 }}"
+      "prj_attribute_name": {{ .Values.env.jit.projects_attribute_name | default "fm_projects" }}
+    }
+  certificate.cer: |-
+    {{ .Files.Get "certificate.crt" | nindent 4 | trim }}

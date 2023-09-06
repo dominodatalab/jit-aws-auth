@@ -8,12 +8,12 @@ ENV FLASK_ENV=production
 ENV LOG_LEVEL=WARNING
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
-ENV PORT 80
 RUN pip install --upgrade pip
 RUN pip install --user -r requirements.txt
 WORKDIR /app
 ADD jit jit
 RUN apt-get update && apt-get upgrade -y
+RUN mkdir /var/log/jit && chown 1000 /var/log/jit
 USER 1000
 ENTRYPOINT ["python"]
 CMD ["jit/jit_server.py"]

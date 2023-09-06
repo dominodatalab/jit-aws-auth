@@ -12,7 +12,7 @@ class SessionsClientMixin:
     to access the JIT Access Engine's Sessions APIs
     """
 
-    def get_jit_sessions_by_sub(self, sub: str) -> str:
+    def get_jit_sessions_by_sub(self, sub: str, project: str) -> str:
         """
         Returns an JIT sessions created by user.
 
@@ -22,7 +22,7 @@ class SessionsClientMixin:
         Returns:
             JsonDict: The IAM role template
         """
-        params = {"sub": sub, "active": 'true'}
+        params = {"sub": sub, "active": 'true', "project": project}
         return self.get('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions', params=params,
                         verify=CERT_PATH).json()
 
@@ -50,7 +50,6 @@ class SessionsClientMixin:
         Returns:
             None
         """
-
         x = self.post(
             f"/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions",
             json=payload, verify=CERT_PATH)

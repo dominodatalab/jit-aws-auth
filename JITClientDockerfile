@@ -7,8 +7,7 @@ ENV FLASK_ENV=production
 ENV LOG_LEVEL=INFO
 RUN pip install --upgrade pip
 RUN pip install --user -r requirements.txt
+RUN mkdir /var/log/jit && chown 1000 /var/log/jit
 ADD jit-client /app
-#USER 1000
+USER 1000
 ENTRYPOINT ["python", "/app/jit-client-proxy.py" ]
-
-
