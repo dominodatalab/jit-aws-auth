@@ -49,19 +49,3 @@ rules:
           value: http://localhost:8899
         - name: DOMINO_JIT_REFRESH_ENDPOINT
           value: "http://localhost:"
-        - name: REQUESTS_CA_BUNDLE
-          value: /etc/ssl/jit/ca.crt
-- insertVolumeMounts:
-    containerSelector:
-    - jit
-    volumeMounts:
-    - name: {{ .Values.env.name }}-certs
-      mountPath: /etc/ssl/jit/
-    - name: log-volume
-      mountPath: /var/log/jit/
-    - name: jit-aws-creds
-      mountPath: /etc/.aws/
-  insertVolumes:
-  - name: {{ .Values.env.name }}-certs
-    secret:
-      secretName: {{ .Values.env.name }}-certs
