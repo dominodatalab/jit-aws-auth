@@ -15,8 +15,6 @@ app.config["DEBUG"] = True
 
 # initiate JIT access engine client
 client = JitAccessEngineClient()
-current_list_of_jit_sessions = {}
-new_list_of_jit_sessions = {}
 
 log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + 'app.log'
 lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
@@ -136,6 +134,5 @@ if __name__ == '__main__':
     app.run(
         host=os.environ.get("FLASK_HOST", "0.0.0.0"),
         port=os.environ.get('APP_PORT',5000),
-        debug=debug,
-        ssl_context=("/ssl/tls.crt", "/ssl/tls.key"),
+        debug=debug
     )

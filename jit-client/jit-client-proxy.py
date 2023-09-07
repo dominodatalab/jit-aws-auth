@@ -10,10 +10,9 @@ from datetime import datetime,timedelta
 
 log_file = os.environ.get("JIT_LOG_FOLDER", '/var/log/jit/') + 'app.log'
 aws_credentials_file = os.environ.get("AWS_SHARED_CREDENTIALS_FILE",'/etc/.aws/credentials')
-service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT",'https://jit-svc.domino-field')
+service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT",'http://jit-svc.domino-field')
 token_min_expiry_in_seconds = os.environ.get('TOKEN_MIN',300)
 poll_jit_interval = os.environ.get('POLL_INTERVAL',60)
-cacert_path = os.environ.get('REQUESTS_CACERT')
 session_list = []
 
 lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
@@ -112,7 +111,7 @@ def refresh_jit_credentials(project=None):
     logger.info(f'Refreshing credentials from JIT URL: {url}')
     while (not success):
         try:
-            resp = requests.get(url, headers=headers, json={},verify=cacert_path)
+            resp = requests.get(url, headers=headers, json={})
             logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
             logger.debug(f'API Response: {resp.content}')
             if resp.status_code == 200:
