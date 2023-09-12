@@ -50,7 +50,7 @@ spec:
           httpGet:
             path: /healthz
             port: {{ .Values.env.containerPort | default 5000 }}
-            scheme: HTTPS
+            scheme: HTTP
           initialDelaySeconds: 20
           failureThreshold: 2
           timeoutSeconds: 5
@@ -58,15 +58,12 @@ spec:
           httpGet:
             path: /healthz
             port: {{ .Values.env.containerPort | default 5000 }}
-            scheme: HTTPS
+            scheme: HTTP
           initialDelaySeconds: 20
           failureThreshold: 2
           timeoutSeconds: 5
         imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
         volumeMounts:
-          - name: certs
-            mountPath: /ssl
-            readOnly: true
           - name: logs
             mountPath: /var/log/jit
           - name: jit-secret
@@ -74,9 +71,6 @@ spec:
           - name: jit-config
             mountPath: "/etc/config/jit-config/"
       volumes:
-        - name: certs
-          secret:
-            secretName: "{{ .Values.env.name }}-certs"
         - name: logs
           emptyDir:
             sizeLimit: 1000Mi
