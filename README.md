@@ -21,11 +21,18 @@ If the namespace exists, ensure that it has a label of `domino-compute=true`.
 kubectl label ns domino-field domino-compute=true
 ```
 
+For Istio-enabled deployments, also add the Istio sidecar injection label:
+
+```shell
+kubectl label ns domino-field istio-injection=enabled
+```
+
 2. Ensure that the compute (default: `domino-compute`) namespace has the label `operator-enabled=true`:
 
 ```shell
 kubectl label ns domino-compute operator-enabled="true"
 ```
+
 
 3. Create two secrets in the AWS Secrets 
    a. `dev/nuid`
