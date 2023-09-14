@@ -12,7 +12,7 @@ spec:
   - "{{ .Values.env.service }}-mock.{{ .Values.env.namespace.field }}"
   - "{{ .Values.env.service }}-mock.{{ .Values.env.namespace.field }}.svc"
   issuerRef:
-    name: "selfsigned-{{ .Values.env.name }}"
+    name: "selfsigned-{{ .Values.env.name }}-mock"
 ---
 
 apiVersion: cert-manager.io/v1
