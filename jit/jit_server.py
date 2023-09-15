@@ -5,7 +5,7 @@ import configparser
 from flask import request,abort
 
 from jit.utils.logging import logger
-import logging,sys,os,jwt,requests
+import logging,sys,os,jwt,requests,json
 from client import JitAccessEngineClient
 from jit.client import constants
 
@@ -27,7 +27,7 @@ logger = logging.getLogger("werkzeug")
 handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(handler)
 
-def verify_user(headers):
+def verify_user(headers:dict):
     domino_host = os.environ.get(
         "DOMINO_USER_HOST", "http://nucleus-frontend.domino-platform:80"
     )
@@ -102,7 +102,7 @@ def create_new_sessions(user_id:str,user_mail:str,user_project_list:[]) -> []:
 @app.route('/jit-sessions', methods=['GET'])
 def jit_aws_credentials(project=None,user_jwt=None):
     user_jwt = user_jwt or request.headers['Authorization'].split()[1]
-    if verify_user(request.headers):
+    if verify_user(dict(request.headers)):
         user = jwt.decode(user_jwt,options={"verify_signature": False})
         if project:
            user[constants.fm_projects_attribute] = [project]
@@ -116,7 +116,7 @@ def jit_aws_credentials(project=None,user_jwt=None):
 
 @app.route('/jit-sessions/<project>', methods=['GET'])
 def jit_aws_credential_by_project(project):
-    user_jwt = request.headers['Authorization'].split(" ",1)
+    user_jwt = request.headers['Authorization'].split()[1]
     new_credential = jit_aws_credentials(project=project,user_jwt=user_jwt)
     return new_credential
 
