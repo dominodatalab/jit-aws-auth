@@ -33,9 +33,12 @@ def verify_user(headers:dict):
     )
     endpoint = f"{domino_host}/v4/auth/principal"
     resp = requests.get(endpoint, headers=headers)
-    if resp.status_code == 200:
+    user_is_anon = resp.json()['isAnonymous']
+    if not user_is_anon:
         return True
     else:
+        headers['Authorization'] = "Bearer REDACTED"
+        logger.info(f"Nucleus returned non-200 response: url {domino_host}, response_code {resp.status_code}, headers {headers}, response {resp.json()}")
         return False
 
 
