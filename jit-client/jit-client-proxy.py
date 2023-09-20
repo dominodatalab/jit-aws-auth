@@ -25,18 +25,10 @@ logger = logging.getLogger("werkzeug")
 handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(handler)
 
-# @app.route('/refresh', methods=['GET'])
-# def refresh():
-#     success = refresh_jit_credentials()
-#     return {'is_refreshed': success}
-
-# @app.route('/healthz', methods=['GET'])
-# def healthz():
-#     return "healthy"
-
 def write_credentials_file(aws_credentials:[],cred_file_path):
     config = configparser.ConfigParser()
     config.read(cred_file_path)
+    logger.debug(f"Credentials array to write: {aws_credentials}")
     for cred in aws_credentials:
         profile_name = cred['projects'][0]
         if not config.has_section(profile_name): 
@@ -87,11 +79,14 @@ def get_domino_user_identity():
 
 def check_credential_expiration(credential_list:[]):
     logger.info("Checking for credential expiry")
-    min_expiry_time = datetime.now().astimezone() + timedelta(seconds=token_min_expiry_in_seconds)
-    min_expiry_time_str = min_expiry_time.strftime('%Y-%m-%d %H:%M:%S%z')
-    expiring_creds = [cred for cred in credential_list if datetime.astimezone(datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z')) < min_expiry_time ]
-    for cred in expiring_creds:
-        logger.info(f'Credential for project {cred["jit_project"]} is expiring soon: Cred expiry {cred["expiration"]}, Min expiry time {min_expiry_time_str}')
+    expiring_creds = []
+    for cred in credential_list:
+        cred_expiration_time = datetime.astimezone(datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z'))
+        cred_refresh_time = cred_expiration_time - timedelta(seconds=token_min_expiry_in_seconds)
+        now = datetime.now().astimezone()
+        if now > cred_refresh_time:
+            logger.info(f'Credential for project {cred["jit_project"]} is expiring soon: Cred expiry {cred["expiration"]}, Cred refresh time {cred_refresh_time.strftime("%Y-%m-%d %H:%M:%S%z")}')
+            expiring_creds.append(cred)
     return expiring_creds
 
 def refresh_jit_credentials(project=None):
@@ -113,7 +108,7 @@ def refresh_jit_credentials(project=None):
         try:
             resp = requests.get(url, headers=headers, json={})
             logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
-            logger.debug(f'API Response: {resp.content}')
+            logger.debug(f'API Response: {resp.json()}')
             if resp.status_code == 200:
                 creds = resp.json()
                 success = True
@@ -134,14 +129,17 @@ if __name__ == "__main__":
             if len(expiring_creds) > 0:
                 new_creds = []
                 for cred in expiring_creds:
+                    # A note here: in the initial phase, we call the base service endpoint, which returns a list of all credentials
+                    # that the user is authorized for (based on their groups).
+                    # In the refresh phase, we call the service endpoint by project, based on which credentials are expiring.
                     refreshed_cred = refresh_jit_credentials(cred['jit_project'])
                     new_creds.append(refreshed_cred)
-                write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
+                if len(new_creds) > 0:    
+                    write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
+                else:
+                    logger.info("Attempted to refresh credentials, but response from JIT Proxy was empty. Will retry on next cycle.")
         else:
             new_creds = refresh_jit_credentials()
-            write_credentials_file(new_creds,aws_credentials_file)
+            if len(new_creds) > 0:
+                write_credentials_file(new_creds,aws_credentials_file)
         time.sleep(poll_jit_interval)
-                
-    refresh_jit_credentials()
-    port_no = int(os.environ.get('JIT_CLIENT_PROXY_PORT','5003'))
-    app.run(debug=True, host='0.0.0.0', port=port_no)
