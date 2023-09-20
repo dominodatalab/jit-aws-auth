@@ -50,15 +50,17 @@ def verify_user(user_jwt):
 def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
     key_list = ['eventType','applicationShortName','lifecycle','projectName','userId','userEmail']
     ug_list = [ ug for ug in user_group_list if 'POLICY-MANAGER' not in ug ] # Any group name with "POLICY-MANAGER" in it can be filtered per PT.
+    logger.debug(f"User group list: {ug_list}")
     user_project_data = []
     user_session_list = []
     for group_name in ug_list:
         prj_split = group_name.split("-")
         session = { key:None for key in key_list }
         session['applicationShortName'] = prj_split[4]
-        session['lifecycle'] = prj_split[2] + "-" + prj_split[3]
+        lc_tmp = prj_split[2] + "-" + prj_split[3]
+        session['lifecycle'] = lc_tmp.lower() # Per PT
         session['eventType'] = 'createJitProjectSession'
-        session['projectName'] = prj_split[-1]
+        session['projectName'] = prj_split[-1].lower() # Per PT
         session['userId'] = user_id
         session['userEmail'] = user_mail
         user_project_data.append(session)
@@ -66,17 +68,21 @@ def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
     logger.info(f"Body data to send to JIT API: {user_project_data}")
     for project in user_project_data:
         session = client.put_sessions(project)
-        user_session_list.append(session.json())
+        logger.debug(f"JIT API Response for {project}: {session.json()}")
+        if session.status_code == 200:
+            user_session_list.append(session.json())
     
     return user_session_list
 
 @app.route('/jit-sessions', methods=['GET'])
 def jit_aws_credentials(project=None,user_jwt=None):
-    user_jwt = user_jwt or request.headers['Authorization'].split()[1]
-    if verify_user(user_jwt):
-        user = jwt.decode(user_jwt,options={"verify_signature": False})
+    user_token = user_jwt or request.headers['Authorization'].split()[1]
+    if verify_user(user_token):
+        user = jwt.decode(user_token,options={"verify_signature": False})
         if project:
-           user[constants.fm_projects_attribute] = [project]
+           # Note: we must send the group names as lower-cased to the JIT API (and we write them as lower-cased on the client side),
+           # but they are present as upper-cased in the user JWT.
+           user[constants.fm_projects_attribute] = [grp_name for grp_name in user[constants.fm_projects_attribute] if project.upper() in grp_name]
         logger.info(f'Fetching Credentials for user: {user["preferred_username"]}')
         user_id = user['preferred_username']
         user_mail = user['email']
@@ -89,7 +95,9 @@ def jit_aws_credentials(project=None,user_jwt=None):
 def jit_aws_credential_by_project(project):
     user_jwt = request.headers['Authorization'].split()[1]
     new_credential = jit_aws_credentials(project=project,user_jwt=user_jwt)
-    return new_credential
+    # Note: while the /jit-sessions URL returns a list of all of the credentials for a given user, this
+    # endpoint will return only a single credential dict based on the project value.
+    return new_credential[0]
 
 @app.route('/healthz', methods=['GET'])
 def healthz():
