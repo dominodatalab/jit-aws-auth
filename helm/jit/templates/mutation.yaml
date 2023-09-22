@@ -5,7 +5,7 @@ metadata:
   namespace:  {{ .Values.env.namespace.platform }}
 rules:
   - labelSelectors:
-      - dominodatalab.com/workload-type in (Workspace)
+      - dominodatalab.com/workload-type in (Workspace,Batch)
       {{- if .Values.users }} 
       - dominodatalab.com/starting-user-username in ({{ join "," .Values.users }})
       {{- end }}
