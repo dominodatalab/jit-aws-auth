@@ -39,7 +39,7 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
         self._client_secret = constants.client_secret
         self._access_token: Optional[str] = None
         self._refresh_token: Optional[str] = None
-        self._access_token_expiry_time = constants.access_token_expiry_time
+        self._access_token_expiry_time: Optional[datetime.datetime] = None
         self._r_username = constants.r_username
         self._r_password = constants.r_password
 
