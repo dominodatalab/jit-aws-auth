@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-import flask
-import configparser
+import logging,sys,os,jwt,requests,json,flask,datetime
 
 from flask import request,abort
 
 from jit.utils.logging import logger
-import logging,sys,os,jwt,requests,json
+from datetime import datetime
 from client import JitAccessEngineClient
 from jit.client import constants
 
@@ -26,6 +25,13 @@ logging.basicConfig(
 logger = logging.getLogger("werkzeug")
 handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(handler)
+
+def check_update_jit_client():
+    now = datetime.now()
+    global client
+    if client._access_token_expiry_time and client._access_token_expiry_time < now:
+        logger.info("JIT Client OAuth token expired. Refreshing...")
+        client = JitAccessEngineClient()
 
 def verify_user(user_jwt):
     headers = {
@@ -76,6 +82,7 @@ def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
 
 @app.route('/jit-sessions', methods=['GET'])
 def jit_aws_credentials(project=None,user_jwt=None):
+    check_update_jit_client()
     user_token = user_jwt or request.headers['Authorization'].split()[1]
     if verify_user(user_token):
         user = jwt.decode(user_token,options={"verify_signature": False})
