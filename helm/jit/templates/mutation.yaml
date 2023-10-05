@@ -6,6 +6,7 @@ metadata:
 rules:
   - labelSelectors:
       - dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)
+      - app.kubernetes.io/managed-by != distributed-compute-operator
       {{- if .Values.users }} 
       - dominodatalab.com/starting-user-username in ({{ join "," .Values.users }})
       {{- end }}

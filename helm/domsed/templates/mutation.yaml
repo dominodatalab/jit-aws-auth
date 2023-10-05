@@ -7,17 +7,17 @@ metadata:
 webhooks:
   - name: "{{ .Values.env.name }}-webhook.k8s.twr.io"
     admissionReviewVersions:
-    - v1
+      - v1
     clientConfig:
       service:
-        name: {{ .Values.env.service }}
-        namespace: {{ .Values.env.namespace.platform }}
+        name: "{{ .Values.env.service }}"
+        namespace: "{{ .Values.env.namespace.platform }}"
         path: "/"
     sideEffects: None
     namespaceSelector:
       matchExpressions:
-      - key: "{{ .Values.env.name }}-enabled"
-        operator: Exists
+        - key: "{{ .Values.env.name }}-enabled"
+          operator: Exists
     rules:
       - operations:
           - "CREATE"
@@ -32,6 +32,10 @@ webhooks:
           - "ingresses"
           - "configmaps"
           - "networkpolicies"
+          - "daskclusters"
+          - "mpiclusters"
+          - "rayclusters"
+          - "imagebuilds"
         scope: "Namespaced"
-    failurePolicy: {{ .Values.mutation.failurePolicy }}
-    timeoutSeconds: {{ .Values.mutation.timeoutSeconds | default 10 }}
+    failurePolicy: "{{ .Values.mutation.failurePolicy }}"
+    timeoutSeconds: !!int "{{ .Values.mutation.timeoutSeconds | default 10 }}"
