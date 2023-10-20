@@ -94,19 +94,22 @@ aws eks describe-cluster --name <CLUSTER_NAME> | jq -r '.cluster.identity.oidc.i
 
 Complete documentation can be found [here](https://docs.aws.amazon.com/secretsmanager/latest/userguide/integrating_csi_driver.html#integrating_csi_driver_example_2).
 
-The only modification recommended is to replace the command
+From the base of this repo, cd to `helm/secrets-store-csi-driver`. Copy the `values.yaml` file to `values-deploy.yaml`, and 
+update `values-deploy.yaml`. Modify `values-deploy.yaml` as needed (e.g. if you're using a private container repo, modify the various `repository` values).
+
+Install the base CSI driver as follows:
+
 ```shell
-helm install -n kube-system csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver
-```
-with
-```shell
-helm install -n kube-system csi-secrets-store \
-  --set syncSecret.enabled=true \
-  --set enableSecretRotation=true \
-  secrets-store-csi-driver/secrets-store-csi-driver
+helm install -n kube-system csi-secrets-store -f values-deploy.yaml .
 ```
 
-Alternatively you can follow the installation process in the link and run the following
+Now, we will need to install the AWS provider for the CSI driver. From the base of this repo, cd to `helm/secrets-store-csi-driver-provider-aws`. Copy the `values.yaml` file to `values-deploy.yaml`, and update `values-deploy.yaml`. Modify `values-deploy.yaml` as needed (e.g. if you're using a private container repo, modify the various `repository` values).
+
+```shell
+helm install -n kube-system secrets-provider-aws -f values-deploy.yaml .
+```
+
+Alternatively you can follow the installation process in the link and run the following (requires internet access):
 ```shell
 helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
 helm install -n kube-system csi-secrets-store \
@@ -156,7 +159,7 @@ metadata:
     eks.amazonaws.com/role-arn: arn:aws:iam::<EKS_ACCOUNT_NO>:role/dev-domino-jit-role
 ```
 
-2. Create the following pod 
+2. Create the following pod (this step requires that you have access to a container repo with the `nginx` container - if you don't have such, this step can be skipped):
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -183,7 +186,7 @@ spec:
 ```
 
 
-3. Verify that the secrets are loaded 
+3. Verify that the secrets are loaded (if you skipped step two above, skip down to "Install the JIT components" below)
 
 ```shell
 kubectl -n domino-field exec -it nginx -c nginx -- ls -l /etc/config/
@@ -204,10 +207,10 @@ kubectl -n domino-field delete -f .
 
 Domsed is a Domino tool to mutate pods according to a set of rules. This is what will hook in the JIT client sidecar to workspaces.
 
-From the base of this repo, `cd` to `helm/domsed`. Make a copy of the `values.yaml` file and modify that copy to account for changes in your container repo URL (`.image.repository`), as well as any environment-specific modifications that may be needed (e.g. Istio-awareness, log level, etc.). Once this file is ready, run the following command to install:
+From the base of this repo, `cd` to `helm/domsed`. Copy the `values.yaml` file to `values-deploy.yaml`, and update `values-deploy.yaml` to account for changes in your container repo URL (`.image.repository`), as well as any environment-specific modifications that may be needed (e.g. Istio-awareness, log level, etc.). Once this file is ready, run the following command to install:
 
 ```shell
-helm -n domino-platform upgrade --install domsed -f <FILENAME_OF_VALUES_COPY> .
+helm -n domino-platform upgrade --install domsed -f values-deploy.yaml .
 ```
 
 2. Validate that domsed is running:
@@ -218,10 +221,10 @@ kubectl get pods -A -l app=operator-webhook
 
 3.  Install `jit`
 
-From the base of this repo, `cd` to `helm/jit`. Make a copy of the `values.yaml` file and modify that copy to account for changes in your container repo URL (`.image.repository`), as well as any environment-specific modifications that may be needed (e.g. IAM role-arn from the pre-requisites steps above, the file location for the JIT API CA cert, etc). Once this file is ready, run the following command to install:
+From the base of this repo, `cd` to `helm/jit`. Copy the `values.yaml` file to `values-deploy.yaml`, and update `values-deploy.yaml` to account for changes in your container repo URL (`.image.repository`), as well as any environment-specific modifications that may be needed (e.g. IAM role-arn from the pre-requisites steps above, the file location for the JIT API CA cert, etc). Once this file is ready, run the following command to install:
 
 ```shell
-helm -n domino-field upgrade --install jit -f <FILENAME_OF_VALUES_COPY> .
+helm -n domino-field upgrade --install jit -f values-deploy.yaml .
 ```
 
 4. Validate that the JIT Proxy API is running:
