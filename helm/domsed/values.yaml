@@ -45,7 +45,7 @@ env:
   #   value: worker
 
 istio:
-  enabled: false
+  enabled: true
 
 mutation:
   # k8s API client watcher timeout
