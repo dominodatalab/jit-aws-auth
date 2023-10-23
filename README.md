@@ -245,6 +245,19 @@ The log for the API proxy server is both within the pod stdout, as well as the f
 
 Within both the client and proxy server, you can set an environment variable of `LOG_LEVEL=DEBUG` to emit additional logs. This should **only** be done during troubleshooting sessions, as it can result in sensitive data being emitted to logs. To set this log level in the proxy server, modify the `Deployment` named `jit` in `domino-field`. To modify the log level in the client-side container, modify the `Mutation` `jit` in the platform namespace.
 
+To enable debug logging on the jit proxy server, run the following:
+
+```shell
+kubectl -n domino-field set env deployment jit -c jit LOG_LEVEL=DEBUG
+```
+To disable debug logging on the jit proxy server:
+
+```shell
+kubectl -n domino-field set env deployment jit -c jit LOG_LEVEL-
+```
+
+**NOTE**: Both of the above commands will result in a restart of the JIT Proxy Server pod(s).
+
 ## AWS Secret Rotation considerations
 
 Periodically, the secret data within AWS Secrets Manager will be rotated. As of this writing, the JIT Proxy server does not automatically reload its configuration when the underlying Secrets Manager data is changed. To pull in the new secret data, restart the JIT Proxy server:
