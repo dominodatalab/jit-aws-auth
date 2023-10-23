@@ -237,11 +237,13 @@ kubectl -n domino-field get pods -l app=jit
 
 ### Client-side
 
-Assuming that the setup above ran normally, you'll want to start a new workspace. You should be able to see credentials within the file `/etc/.aws/credentials`. If you don't, you'll need to start troubleshooting by looking through the client logfile from within the workspace. This can be found at `/var/log/jit/app.log`.
+Assuming that the setup above ran normally, you'll want to start a new workspace. You should be able to see credentials within the file `/etc/.aws/credentials`. If you don't, you'll need to start troubleshooting by looking through the client logfile from within the workspace. This can be found at `/var/log/jit/app.log`. From within your workspace, you can `cat /var/log/jit/app.log` to grab the client-side logs.
 
 ### JIT Proxy Server
 
-The log for the API proxy server is both within the pod stdout, as well as the file `/var/log/jit/app.log` in the pod.
+The log for the API proxy server is both within the pod stdout, as well as the file `/var/log/jit/app.log` in the pod. The proxy server has two logging locations: basic logs are emitted to stdout, but more complex errors may be found by running `kubectl -n domino-field exec -it <JIT_POD_NAME> -c jit -- cat /var/log/jit/app.log | grep -v healthz`. You can get `<JIT_POD_NAME>` by running `kubectl -n domino-field get pods -l app=jit`.
+
+Within both the client and proxy server, you can set an environment variable of `LOG_LEVEL=DEBUG` to emit additional logs. This should **only** be done during troubleshooting sessions, as it can result in sensitive data being emitted to logs. To set this log level in the proxy server, modify the `Deployment` named `jit` in `domino-field`. To modify the log level in the client-side container, modify the `Mutation` `jit` in the platform namespace.
 
 ## AWS Secret Rotation considerations
 
