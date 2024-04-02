@@ -191,9 +191,9 @@ spec:
 ```shell
 kubectl -n domino-field exec -it nginx -c nginx -- ls -l /etc/config/
 
-kubectl -n domino-field  exec -it nginx -c nginx -- cat  /etc/config/nuid/nuid
+kubectl -n domino-field  exec -it nginx -c nginx -- cat  /etc/config/nuid
 
-kubectl -n domino-field  exec -it nginx -c nginx -- cat  /etc/config/ping/ping-client
+kubectl -n domino-field  exec -it nginx -c nginx -- cat  /etc/config/ping-client
 ```
 
 4. Clean up

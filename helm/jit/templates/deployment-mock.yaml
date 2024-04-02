@@ -63,15 +63,9 @@ spec:
           timeoutSeconds: 5
         imagePullPolicy: Always
         volumeMounts:
-          - name: certs
-            mountPath: /ssl
-            readOnly: true
           - name: logs
             mountPath: /var/log/jit
       volumes:
-        - name: certs
-          secret:
-            secretName: "{{ .Values.env.name }}-certs"
         - name: logs
           emptyDir:
             sizeLimit: 1000Mi
