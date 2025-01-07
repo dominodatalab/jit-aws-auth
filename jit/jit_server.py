@@ -106,6 +106,21 @@ def jit_aws_credential_by_project(project):
     # endpoint will return only a single credential dict based on the project value.
     return new_credential[0]
 
+@app.route('/user-projects', methods=['GET'])
+def jit_groups(user_jwt=None):
+    check_update_jit_client()
+    user_token = user_jwt
+    if verify_user(user_token):
+        user = jwt.decode(user_token,options={"verify_signature": False})
+        try:
+            group_list = user[constants.fm_projects_attribute] = [grp_name for grp_name in user[constants.fm_projects_attribute] if project.upper() in grp_name]
+        except KeyError:
+            group_list = []
+        return group_list
+    else:
+        abort(401,description="Invalid User JWT")
+
+
 @app.route('/healthz', methods=['GET'])
 def healthz():
     return {}
