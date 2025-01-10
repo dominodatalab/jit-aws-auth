@@ -16,16 +16,12 @@ log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + 'app.log'
 session_file = os.environ.get("JIT_SESSION_FILE",'/app/jit_sessions.json')
 aws_creds_file = os.environ.get("JIT_CREDS_FILE",'/app/aws_creds.json')
 cred_lifetime_seconds = int(os.environ.get("CRED_LIFETIME",3600))
-logger = logging.getLogger("jit-server")
-lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
+logger = logging.getLogger('jit_mock_server')
 logging.basicConfig(
-    level=lvl,
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    filename=log_file, filemode='w'
+    stream=sys.stdout
 )
-handler = logging.StreamHandler(sys.stdout)
-logger.addHandler(handler)
-log = logging.getLogger("domino-jit")
 
 # def get_user_name(headers):
 #     domino_host = os.environ.get(
@@ -50,7 +46,7 @@ def get_aws_credentials(session_id,project_name):
     data['secretAccessKey'] = ''.join(random.choices(string.ascii_letters + string.digits, k=40))
     data['sessionToken'] = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
     data['session_id'] = session_id
-    data['expiration'] = expire_time.strftime('%Y-%m-%d %H:%M:%S%z')
+    data['expiration'] = expire_time.isoformat()
     data['projects'] = [project_name] or ['default']
     return data
 

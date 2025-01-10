@@ -43,7 +43,9 @@ spec:
         {{- if .Values.env.containerPort }}
         - name: APP_PORT
           value: "{{ .Values.env.containerPort }}"
-        {{- end }}          
+        {{- end }}
+        - name: AWS_REGION
+          value: {{ .Values.env.aws_region }}
         ports:
         - containerPort: {{ .Values.env.containerPort | default 5000 }}
         livenessProbe:

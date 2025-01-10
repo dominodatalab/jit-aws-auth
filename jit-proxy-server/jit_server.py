@@ -1,30 +1,25 @@
 #!/usr/bin/env python
 import logging,sys,os,jwt,requests,json,flask,datetime
-
 from flask import request,abort
-
-from jit.utils.logging import logger
 from datetime import datetime
-from client import JitAccessEngineClient
-from jit.client import constants
 
-app = flask.Flask(__name__)
-app.config["DEBUG"] = True
-
-
-# initiate JIT access engine client
-client = JitAccessEngineClient()
-
-log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + 'app.log'
-lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
+loglevel = os.environ.get("LOG_LEVEL","INFO").upper()
+# We want to use the same logger object as the JIT client,
+# so we need to set it up before importing the client module.
+logger = logging.getLogger('jit_proxy_server')
 logging.basicConfig(
-    level=lvl,
+    level=loglevel,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    filename=log_file, filemode='w'
+    stream=sys.stdout
 )
-logger = logging.getLogger("werkzeug")
-handler = logging.StreamHandler(sys.stdout)
-logger.addHandler(handler)
+from client import JitAccessEngineClient,constants
+
+def create_app():
+    global app,client
+    app = flask.Flask(__name__)
+    client = JitAccessEngineClient()
+    # Set up logging
+    return app
 
 def check_update_jit_client():
     now = datetime.now()
@@ -93,18 +88,32 @@ def jit_aws_credentials(project=None,user_jwt=None):
         logger.info(f'Fetching Credentials for user: {user["preferred_username"]}')
         user_id = user['preferred_username']
         user_mail = user['email']
-        session_list = create_new_sessions(user_id=user_id,user_mail=user_mail,user_group_list=user[constants.fm_projects_attribute])
+        session_list = create_new_sessions(user_id=user['preferred_username'],user_mail=user['email'],user_group_list=user[constants.fm_projects_attribute])
         return session_list
     else:
         abort(401,description="Invalid User JWT")
 
 @app.route('/jit-sessions/<project>', methods=['GET'])
 def jit_aws_credential_by_project(project):
+    check_update_jit_client()
     user_jwt = request.headers['Authorization'].split()[1]
     new_credential = jit_aws_credentials(project=project,user_jwt=user_jwt)
     # Note: while the /jit-sessions URL returns a list of all of the credentials for a given user, this
     # endpoint will return only a single credential dict based on the project value.
     return new_credential[0]
+
+@app.route('/jit-sessions-dummy', methods=['GET'])
+def jit_aws_credentials(project=None,user_jwt=None):
+    check_update_jit_client()
+    user_token = user_jwt or request.headers['Authorization'].split()[1]
+    if verify_user(user_token):
+        user = jwt.decode(user_token,options={"verify_signature": False})
+        user[constants.fm_projects_attribute] = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
+        logger.info(f'Fetching Credentials for user: {user["preferred_username"]}')
+        session_list = create_new_sessions(user_id=user['preferred_username'],user_mail=user['email'],user_group_list=user[constants.fm_projects_attribute])
+        return session_list
+    else:
+        abort(401,description="Invalid User JWT")
 
 @app.route('/user-projects', methods=['GET'])
 def jit_groups(user_jwt=None):
@@ -127,13 +136,18 @@ def healthz():
 
 @app.route('/test', methods=['GET'])
 def test():
-    return constants.to_debug()
+    if loglevel == "DEBUG":
+        return constants.to_debug()
+    else:
+        return {}
 
-
-if __name__ == '__main__':
-    debug = os.environ.get("FLASK_ENV") == "development"
-    app.run(
+if __name__ == "__main__":
+    debug: bool = True
+    port = 5000
+    print(f"Debug mode:{debug}")
+    create_app().run(
         host=os.environ.get("FLASK_HOST", "0.0.0.0"),
-        port=os.environ.get('APP_PORT',5000),
-        debug=debug
+        port=port,
+        debug=debug,
+        ssl_context=("/ssl/tls.crt", "/ssl/tls.key"),
     )

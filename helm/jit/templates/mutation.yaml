@@ -41,9 +41,9 @@ rules:
         - jit
       env:
         - name: AWS_SHARED_CREDENTIALS_FILE
-          value: /etc/.aws/credentials
+          value: /etc/.aws/profile
         - name: DOMINO_JIT_ENDPOINT
-          value: "http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"
+          value: {{- if .Values.testing -}}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions-dummy"{{ else }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"{{ end }}
         - name: DOMINO_API_PROXY
           value: http://localhost:8899
         - name: DOMINO_JIT_REFRESH_ENDPOINT

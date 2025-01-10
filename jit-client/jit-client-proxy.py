@@ -1,54 +1,61 @@
-import sys
-
-import requests
-import os
-import time,datetime
-import logging
-import traceback
-import configparser
+import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdown,shutil
 from datetime import datetime,timedelta
 
-log_file = os.environ.get("JIT_LOG_FOLDER", '/var/log/jit/') + 'app.log'
-aws_credentials_file = os.environ.get("AWS_SHARED_CREDENTIALS_FILE",'/etc/.aws/credentials')
-service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT",'http://jit-svc.domino-field')
-token_min_expiry_in_seconds = os.environ.get('TOKEN_MIN',300)
-poll_jit_interval = os.environ.get('POLL_INTERVAL',60)
+log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + "app.log"
+aws_credentials_profile = os.environ.get("AWS_SHARED_CREDENTIALS_FILE","/etc/.aws/profile")
+jit_directory_root = "/etc/.aws"
+aws_credentials_file = f"{jit_directory_root}/credentials"
+client_bin_dir = f"{jit_directory_root}/bin"
+service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT","http://jit-svc.domino-field")
+token_min_expiry_in_seconds = os.environ.get("TOKEN_MIN",300)
+poll_jit_interval = os.environ.get("POLL_INTERVAL",10)
+
 session_list = []
 
-lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
-logging.basicConfig(
-    level=lvl,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    filename=log_file, filemode='w'
-)
-logger = logging.getLogger("werkzeug")
-handler = logging.StreamHandler(sys.stdout)
-logger.addHandler(handler)
+# lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
+# logging.basicConfig(
+#     level=lvl,
+#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+#     filename=log_file, filemode='w'
+# )
+# logger = logging.getLogger("werkzeug")
+# handler = logging.StreamHandler(sys.stdout)
+# logger.addHandler(handler)
 
-def write_credentials_file(aws_credentials:[],cred_file_path):
+logger = logging.getLogger('jit_proxy_client')
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
+)
+
+def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
     config = configparser.ConfigParser()
     config.read(cred_file_path)
-    logger.debug(f"Credentials array to write: {aws_credentials}")
+    log_creds = [{k,v['AccessKeyId']} for k,v in aws_credentials]
+    logger.debug(f"Credential profiles to write: {log_creds}")
     for cred in aws_credentials:
         profile_name = cred['projects'][0]
         if not config.has_section(profile_name): 
             config.add_section(profile_name)
             logger.info(f'Adding AWS cli credentials profile {profile_name}')
         logger.info(f'Adding AWS cli credentials: profile: {profile_name}, jitSessionId: {cred["session_id"]}, AWS Key ID: {cred["accessKeyId"]}')
-        config.set(profile_name,"aws_access_key_id",cred["accessKeyId"])
-        config.set(profile_name,"aws_secret_access_key",cred["secretAccessKey"])
-        config.set(profile_name,"aws_session_token",cred["sessionToken"])
-        config.set(profile_name,"expiration",cred["expiration"])
-        config.set(profile_name,"jit_session_id",cred["session_id"])
-        config.set(profile_name,"jit_project",profile_name)
+        config.set(profile_name,"credential_process",f"{client_bin_dir}/credential-helper --cred-file {aws_credentials_file} --profile {profile_name}")
+        config.set(profile_name,"jitSessionId",cred["session_id"])
     with open(cred_file_path, "w") as f:
         config.write(f)
+
+def write_credentials_file(aws_credentials:list[dict],cred_file_path):
+    log_creds = [{k,v['AccessKeyId']} for k,v in aws_credentials]
+    logger.debug(f"Credentials to write: {log_creds}")
+    cred_dict = {cred['projects'][0]:cred for cred in aws_credentials}
+    with open(cred_file_path, "w") as f:
+        json.dumps(cred_dict,f)
         
 
 def read_credentials_file(cred_file_path):
-    config = configparser.ConfigParser()
-    config.read(cred_file_path)
-    config_dict = [ dict(config.items(section)) for section in config.sections() ]
+    with open(cred_file_path, "r") as f:
+        config_dict = json.load(f)
     return config_dict
 
 def get_domino_user_identity():
@@ -122,7 +129,9 @@ def refresh_jit_credentials(project=None):
     return creds
 
 if __name__ == "__main__":
-    while True:
+    shutdown = shutdown.GracefulShutdown(logger)
+    shutil.copytree("/app/clientbin",client_bin_dir)
+    while not shutdown.shutdown_signal:
         if os.path.isfile(aws_credentials_file) and os.path.getsize(aws_credentials_file) > 0:
             existing_creds = read_credentials_file(aws_credentials_file)
             expiring_creds = check_credential_expiration(existing_creds)
@@ -141,5 +150,8 @@ if __name__ == "__main__":
         else:
             new_creds = refresh_jit_credentials()
             if len(new_creds) > 0:
-                write_credentials_file(new_creds,aws_credentials_file)
-        time.sleep(poll_jit_interval)
+                write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
+                write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
+        if not shutdown.shutdown_signal:
+            logger.info(f"Sleeping {poll_jit_interval} seconds until next attempt...")
+            time.sleep(poll_jit_interval)

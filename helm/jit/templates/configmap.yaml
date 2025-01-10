@@ -8,7 +8,9 @@ data:
     {
       "jit_endpoint": "{{ if .Values.testing }}http://jit-svc-mock{{ else }}{{ .Values.env.jit.url }}{{ end }}",
       "minimum_token_validity_required_in_seconds": "{{ .Values.env.jit.expiry_token_minimum | default 30 }}",
-      "prj_attribute_name": {{ if .Values.testing }}"user_groups"{{ else }}{{ .Values.env.jit.projects_attribute_name | default "fm_projects" | quote }}{{ end }}
+      "prj_attribute_name": {{ if .Values.testing }}"user_groups"{{ else }}{{ .Values.env.jit.projects_attribute_name | default "fm_projects" | quote }}{{ end }},
+      "ping_secret": "{{ .Values.env.ping.secret_arn }}",
+      "nuid_secret": "{{ .Values.env.jit.secret_arn }}"
     }
   ca.crt: |-
     {{ printf .Values.env.tls.jit_tls_cert_ca | .Files.Get | nindent 4 | trim }}
