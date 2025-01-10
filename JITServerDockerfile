@@ -2,7 +2,8 @@ ARG pythonversion=3.13
 FROM cgr.dev/dominodatalab.com/python:${pythonversion}-dev AS build
 COPY --chown=nonroot:nonroot jit-proxy-server/ /app
 WORKDIR /app
-RUN python -m venv venv 
+RUN python -m venv venv
+ENV PATH="/app/venv/bin:$PATH"
 RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt
 
 FROM cgr.dev/dominodatalab.com/python:${pythonversion}
