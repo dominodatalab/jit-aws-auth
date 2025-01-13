@@ -148,6 +148,5 @@ if __name__ == "__main__":
     create_app().run(
         host=os.environ.get("FLASK_HOST", "0.0.0.0"),
         port=port,
-        debug=debug,
-        ssl_context=("/ssl/tls.crt", "/ssl/tls.key"),
+        debug=debug
     )
