@@ -1,14 +1,6 @@
-import sys
-import flask
-import os
+import sys,flask,os,json,random,requests,logging,string
 from flask import request
-import json
-import random
-import requests
-import logging
-import string
 from datetime import datetime,timedelta
-
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 
