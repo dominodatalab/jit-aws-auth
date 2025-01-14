@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import logging,sys,os,jwt,requests,json,flask,datetime
-from flask import request,abort
+from flask import Flask,request,abort
 from datetime import datetime
 
 loglevel = os.environ.get("LOG_LEVEL","INFO").upper()
@@ -14,9 +14,11 @@ logging.basicConfig(
 )
 from client import JitAccessEngineClient,constants
 
+# Create a Flask application
+app = Flask(__name__)
+
 def create_app():
     global app,client
-    app = flask.Flask(__name__)
     client = JitAccessEngineClient()
     # Set up logging
     return app
@@ -103,9 +105,11 @@ def jit_aws_credential_by_project(project):
     return new_credential[0]
 
 @app.route('/jit-sessions-dummy', methods=['GET'])
-def jit_aws_credentials(project=None,user_jwt=None):
+def jit_aws_credentials_dummy(project=None,user_jwt=None):
     check_update_jit_client()
     user_token = user_jwt or request.headers['Authorization'].split()[1]
+    if loglevel != "DEBUG":
+        abort(401,description="Endpoint not available in non-DEBUG mode")
     if verify_user(user_token):
         user = jwt.decode(user_token,options={"verify_signature": False})
         user[constants.fm_projects_attribute] = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
@@ -114,6 +118,15 @@ def jit_aws_credentials(project=None,user_jwt=None):
         return session_list
     else:
         abort(401,description="Invalid User JWT")
+
+@app.route('/jit-sessions-dummy/<project>', methods=['GET'])
+def jit_aws_credential_by_project_dummy(project):
+    check_update_jit_client()
+    user_jwt = request.headers['Authorization'].split()[1]
+    new_credential = jit_aws_credentials_dummy(project=project,user_jwt=user_jwt)
+    # Note: while the /jit-sessions URL returns a list of all of the credentials for a given user, this
+    # endpoint will return only a single credential dict based on the project value.
+    return new_credential[0]
 
 @app.route('/user-projects', methods=['GET'])
 def jit_groups(user_jwt=None):
