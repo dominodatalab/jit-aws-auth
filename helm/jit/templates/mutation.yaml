@@ -5,8 +5,8 @@ metadata:
   namespace:  {{ .Values.env.namespace.platform }}
 rules:
   - labelSelectors:
-      - dominodatalab.com/workload-type in (Workspace,Batch,Scheduled,App)
-      - app.kubernetes.io/managed-by != distributed-compute-operator
+      - dominodatalab.com/workload-type
+      # - app.kubernetes.io/managed-by != distributed-compute-operator
       {{- if .Values.users }} 
       - dominodatalab.com/starting-user-username in ({{ join "," .Values.users }})
       {{- end }}
@@ -43,8 +43,8 @@ rules:
         - name: AWS_SHARED_CREDENTIALS_FILE
           value: /etc/.aws/profile
         - name: DOMINO_JIT_ENDPOINT
-          value: {{- if .Values.testing -}}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions-dummy"{{ else }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"{{ end }}
+          value: {{ if .Values.testing }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions-dummy"{{ else }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"{{ end }}
         - name: DOMINO_API_PROXY
           value: http://localhost:8899
-        - name: DOMINO_JIT_REFRESH_ENDPOINT
-          value: "http://localhost:"
+        - name: LOG_LEVEL
+          value: {{ .Values.env.log_level | default "INFO" }}

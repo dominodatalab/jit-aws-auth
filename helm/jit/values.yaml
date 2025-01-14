@@ -11,6 +11,7 @@ env:
   service: jit-svc
   iamrole: <JIT_SERVER_IAM_ROLE_ARN>
   aws_region: us-east-1
+  # log_level: # For setting the logging level of the JIT server. Defaults to "INFO."
   # projects_attribute_name: some_attribute_name # For setting a custom keycloak-mapped attribute that ties to the groups/projects SAML assertion.
                                                  # Defaults to "fm_projects."
 
