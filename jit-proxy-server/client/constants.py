@@ -19,7 +19,8 @@ nuid_secret_arn = jit_config['nuid_secret']
 def get_secret(secret_arn):
     secret_value = None
     try:
-        secret_value = sm_cache.get_secret_string(secret_arn)
+        secret_str = sm_cache.get_secret_string(secret_arn)
+        secret_value = json.loads(secret_str)
     except Exception as e:
         logger.critical(f"Error retrieving secret {secret_arn}: {e}")
     return secret_value
