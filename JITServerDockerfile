@@ -1,9 +1,9 @@
 ARG pythonversion=3.13
 FROM cgr.dev/dominodatalab.com/python:${pythonversion}-dev AS build
-COPY --chown=nonroot:nonroot jit-proxy-server/ /app
-WORKDIR /app
+COPY --chown=nonroot:nonroot jit-proxy-server/ /app/jit
+WORKDIR /app/jit
 RUN python -m venv venv
-ENV PATH="/app/venv/bin:$PATH"
+ENV PATH="/app/jit/venv/bin:$PATH"
 RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt
 
 FROM cgr.dev/dominodatalab.com/python:${pythonversion}
@@ -11,9 +11,11 @@ ARG COMMITHASH
 ARG RELEASEVER
 ENV LOG_LEVEL=INFO
 ENV PYTHONUNBUFFERED=true
-ENV PATH="/app/venv/bin:$PATH"
+ENV PORT=5000
+ENV PYTHONPATH="/app"
+ENV PATH="/app/jit/venv/bin:$PATH"
 ENV COMMIT=$COMMITHASH
 ENV RELEASE=$RELEASEVER
-COPY --from=build --chown=nonroot:nonroot /app /app
+COPY --from=build --chown=nonroot:nonroot /app/jit /app/jit
 WORKDIR /app
-ENTRYPOINT ["gunicorn",  "jit_server:create_app()"]
+ENTRYPOINT ["gunicorn","--chdir","/app/jit","jit_server:create_app()"]
