@@ -115,6 +115,7 @@ def jit_aws_credentials_dummy(project=None,user_jwt=None):
         user[constants.fm_projects_attribute] = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
         logger.info(f'Fetching Credentials for user: {user["preferred_username"]}')
         session_list = create_new_sessions(user_id=user['preferred_username'],user_mail=user['email'],user_group_list=user[constants.fm_projects_attribute])
+        logger.debug(f"Dummy Session List: {session_list}")
         return session_list
     else:
         abort(401,description="Invalid User JWT")
