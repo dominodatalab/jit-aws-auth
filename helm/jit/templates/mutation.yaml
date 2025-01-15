@@ -5,7 +5,7 @@ metadata:
   namespace:  {{ .Values.env.namespace.platform }}
 rules:
   - labelSelectors:
-      - dominodatalab.com/workload-type
+      - dominodatalab.com/workload-type in (Workspace,App,Batch,Scheduled)
       # - app.kubernetes.io/managed-by != distributed-compute-operator
       {{- if .Values.users }} 
       - dominodatalab.com/starting-user-username in ({{ join "," .Values.users }})
@@ -48,8 +48,11 @@ rules:
           value: http://localhost:8899
         - name: LOG_LEVEL
           value: {{ .Values.env.log_level | default "INFO" }}
+  - labelSelectors:
+      - dominodatalab.com/workload-type in (Workspace,App,Batch,Scheduled)
+    modifyEnv:
       containerSelector:
         - run
       env:
         - name: AWS_CONFIG_FILE
-          value: /etc/.aws/profile          
+          value: /etc/.aws/profile        

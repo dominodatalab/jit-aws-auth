@@ -75,30 +75,19 @@ def read_credentials_file(cred_file_path):
         config_dict = json.load(f)
     return config_dict
 
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=poll_jit_interval,raise_on_giveup=False)
 def get_domino_user_identity():
-    success = False
-    retries = 5
-    while (not success) and retries > 0 :
-        try:
-            token_endpoint = os.environ.get('DOMINO_API_PROXY')
-            access_token_endpoint = token_endpoint + "/access-token"
-            logger.warning(f'Invoking  {access_token_endpoint}/')
-            resp = requests.get(access_token_endpoint)
-            if (resp.status_code==200):
-                logger.warning(f'Success invoking  {access_token_endpoint}')
-                token = resp.text
-                success = True
-            else:
-                logger.warning(f'Failed invoking  {access_token_endpoint} status code {resp.status_code}')
-                logger.warning(f'Error invoking api proxy endpoint {resp.text}')
-                retries = retries - 1
-                time.sleep(2)
-        except Exception:
-            # printing stack trace
-            print(f'Exception {retries}')
-            retries = retries - 1
-            traceback.print_exc()
-            time.sleep(2)
+    token_endpoint = os.environ.get('DOMINO_API_PROXY','http://localhost:8899')
+    access_token_endpoint = token_endpoint + "/access-token"
+    logger.warning(f'Invoking  {access_token_endpoint}/')
+    resp = requests.get(access_token_endpoint)
+    resp.raise_for_status()
+    if (resp.status_code==200):
+        logger.warning(f'Success invoking  {access_token_endpoint}')
+        token = resp.text
+    else:
+        logger.warning(f'Failed invoking  {access_token_endpoint} status code {resp.status_code}')
+        logger.warning(f'Error invoking api proxy endpoint {resp.text}')
     return token
 
 def check_credential_expiration(credential_dict:dict) -> list[dict]: 
