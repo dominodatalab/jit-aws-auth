@@ -1,4 +1,4 @@
-import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdown,shutil
+import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdown,shutil,backoff
 from datetime import datetime,timedelta
 
 log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + "app.log"
@@ -32,7 +32,7 @@ logging.basicConfig(
 def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
     config = configparser.ConfigParser()
     config.read(cred_file_path)
-    log_creds = [{k,v['AccessKeyId']} for k,v in aws_credentials]
+    log_creds = [{cred['accessKeyId']} for cred in aws_credentials]
     logger.debug(f"Credential profiles to write: {log_creds}")
     for cred in aws_credentials:
         profile_name = cred['projects'][0]
@@ -46,11 +46,28 @@ def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
         config.write(f)
 
 def write_credentials_file(aws_credentials:list[dict],cred_file_path):
-    log_creds = [{k,v['AccessKeyId']} for k,v in aws_credentials]
-    logger.debug(f"Credentials to write: {log_creds}")
-    cred_dict = {cred['projects'][0]:cred for cred in aws_credentials}
+    # Based on https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-sourcing-external.html:
+    # {
+    # "Version": 1,
+    # "AccessKeyId": "an AWS access key",
+    # "SecretAccessKey": "your AWS secret access key",
+    # "SessionToken": "the AWS session token for temporary credentials", 
+    # "Expiration": "ISO8601 timestamp when the credentials expire"
+    # }
+    cred_dict = {}
+    for cred in aws_credentials:
+        profile_name = cred['projects'][0]
+        expiration_time = datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z').isoformat()
+        cred_dict[profile_name] = {
+            "Version": 1,
+            "AccessKeyId": cred["accessKeyId"],
+            "SecretAccessKey": cred["secretAccessKey"],
+            "SessionToken": cred["sessionToken"],
+            "Expiration": expiration_time
+        }
+    logger.debug(f"Credentials to write: {cred_dict}")
     with open(cred_file_path, "w") as f:
-        json.dumps(cred_dict,f)
+        json.dump(cred_dict,f,indent=4)
         
 
 def read_credentials_file(cred_file_path):
@@ -84,23 +101,20 @@ def get_domino_user_identity():
             time.sleep(2)
     return token
 
-def check_credential_expiration(credential_list:[]):
+def check_credential_expiration(credential_dict:dict) -> list[dict]: 
     logger.info("Checking for credential expiry")
     expiring_creds = []
-    for cred in credential_list:
-        cred_expiration_time = datetime.astimezone(datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z'))
+    for key,cred in credential_dict.items():
+        cred_expiration_time = datetime.astimezone(datetime.fromisoformat(cred['Expiration']))
         cred_refresh_time = cred_expiration_time - timedelta(seconds=token_min_expiry_in_seconds)
         now = datetime.now().astimezone()
         if now > cred_refresh_time:
-            logger.info(f'Credential for project {cred["jit_project"]} is expiring soon: Cred expiry {cred["expiration"]}, Cred refresh time {cred_refresh_time.strftime("%Y-%m-%d %H:%M:%S%z")}')
+            logger.info(f'Credential for project {key} is expiring soon: Cred expiry {cred["Expiration"]}, Cred refresh time {cred_refresh_time.strftime("%Y-%m-%d %H:%M:%S%z")}')
             expiring_creds.append(cred)
     return expiring_creds
 
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=poll_jit_interval,raise_on_giveup=False)
 def refresh_jit_credentials(project=None):
-    global log_file
-    success = False
-    retry_wait = 5
-    retry_count = 10
     if project:
         url = f'{service_endpoint}/{project}'
     else:
@@ -111,20 +125,12 @@ def refresh_jit_credentials(project=None):
             "Authorization": "Bearer " + user_jwt,
     }
     logger.info(f'Refreshing credentials from JIT URL: {url}')
-    while (not success):
-        try:
-            resp = requests.get(url, headers=headers, json={})
-            logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
-            logger.debug(f'API Response: {resp.json()}')
-            if resp.status_code == 200:
-                creds = resp.json()
-                success = True
-        except Exception:
-            logger.error(f'Exception: {retry_count}')
-            logger.error(f'Error calling {url}. Check log file {log_file} for details.')
-            retry_count -= 1
-            time.sleep(retry_wait)
-            retry_wait = retry_wait * 6
+    resp = requests.get(url, headers=headers, json={})
+    logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
+    resp.raise_for_status()
+    if resp.status_code == 200:
+        logger.debug(f'API Response: {resp.json()}')
+        creds = resp.json()
         # Writing to file
     return creds
 
@@ -149,7 +155,7 @@ if __name__ == "__main__":
                     logger.info("Attempted to refresh credentials, but response from JIT Proxy was empty. Will retry on next cycle.")
         else:
             new_creds = refresh_jit_credentials()
-            if len(new_creds) > 0:
+            if new_creds != None and len(new_creds) > 0:
                 write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
                 write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
         if not shutdown.shutdown_signal:
