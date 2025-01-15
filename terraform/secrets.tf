@@ -39,7 +39,7 @@ locals {
   ping-dict = {
      "client-id" = "${random_string.ping-id.result}"
      "client-secret" = "${random_password.ping-pw.result}"
-     "auth-server-url" = "https://domino.ai" # No, this isn't the real site.
+     "auth-server-url" = "http://jit-svc-mock.domino-field/this_isnt_a_pingfed_token" # No, this isn't the real site.
   }
 }
 
