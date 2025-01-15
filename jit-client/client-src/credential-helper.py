@@ -17,10 +17,5 @@ if __name__ == 'main':
     #   "SessionToken": "the AWS session token for temporary credentials", 
     #   "Expiration": "ISO8601 timestamp when the credentials expire"
     # }
-    creds = {}
-    creds["Version"] = 1
-    for k,v in base_creds.items():
-        newk = k.capitalize()
-        creds[newk] = v
-    print(json.dumps(creds))
+    print(json.dumps(base_creds))
     
