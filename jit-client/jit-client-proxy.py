@@ -45,7 +45,7 @@ def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
     with open(cred_file_path, "w") as f:
         config.write(f)
 
-def write_credentials_file(aws_credentials:list[dict],cred_file_path):
+def convert_jit_api_to_aws_creds(jit_creds:list[dict]) -> dict[dict]:
     # Based on https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-sourcing-external.html:
     # {
     # "Version": 1,
@@ -55,7 +55,7 @@ def write_credentials_file(aws_credentials:list[dict],cred_file_path):
     # "Expiration": "ISO8601 timestamp when the credentials expire"
     # }
     cred_dict = {}
-    for cred in aws_credentials:
+    for cred in jit_creds:
         profile_name = cred['projects'][0]
         expiration_time = datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z').isoformat()
         cred_dict[profile_name] = {
@@ -66,13 +66,24 @@ def write_credentials_file(aws_credentials:list[dict],cred_file_path):
             "Expiration": expiration_time
         }
     logger.debug(f"Credentials to write: {cred_dict}")
+    return cred_dict
+
+def convert_aws_creds_to_jit_api(aws_creds:dict[dict]) -> list[dict]:
+    cred_list = []
+    for key,cred in aws_creds.items():
+            cred['projects'] = [key]
+            cred_list.append(cred)
+    return cred_list
+
+def write_credentials_file(aws_credentials:list[dict],cred_file_path):
+    cred_dict = convert_jit_api_to_aws_creds(aws_credentials)
     with open(cred_file_path, "w") as f:
         json.dump(cred_dict,f,indent=4)
         
 
-def read_credentials_file(cred_file_path):
+def read_credentials_file(cred_file_path) -> list[dict]:
     with open(cred_file_path, "r") as f:
-        config_dict = json.load(f)
+        config_dict = convert_aws_creds_to_jit_api(json.load(f))
     return config_dict
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=poll_jit_interval,raise_on_giveup=False)
@@ -90,20 +101,31 @@ def get_domino_user_identity():
         logger.warning(f'Error invoking api proxy endpoint {resp.text}')
     return token
 
-def check_credential_expiration(credential_dict:dict) -> list[dict]: 
+def check_credential_expiration(credential_list:list[dict]) -> list[dict]:
     logger.info("Checking for credential expiry")
     expiring_creds = []
-    for key,cred in credential_dict.items():
+    for cred in credential_list:
         cred_expiration_time = datetime.astimezone(datetime.fromisoformat(cred['Expiration']))
+        projectname = cred['projects'][0]
         cred_refresh_time = cred_expiration_time - timedelta(seconds=token_min_expiry_in_seconds)
         now = datetime.now().astimezone()
         if now > cred_refresh_time:
-            logger.info(f'Credential for project {key} is expiring soon: Cred expiry {cred["Expiration"]}, Cred refresh time {cred_refresh_time.strftime("%Y-%m-%d %H:%M:%S%z")}')
+            logger.info(f'Credential for project {projectname} is expiring soon: Cred expiry {cred["Expiration"]}, Cred refresh time {cred_refresh_time.strftime("%Y-%m-%d %H:%M:%S%z")}')
             expiring_creds.append(cred)
     return expiring_creds
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=poll_jit_interval,raise_on_giveup=False)
 def refresh_jit_credentials(project=None):
+    # The structure we're expecting from the JIT Proxy:
+    # [ 
+    #     {
+    #         'expiration': <date str '%Y-%m-%d %H:%M:%S%z'>, 
+    #         'projects': <list[str]>,
+    #         'secretAccessKey':'<str>', 
+    #         'sessionToken': '<str>', 
+    #         'session_id': '<str>'
+    #     }
+    # ]
     if project:
         url = f'{service_endpoint}/{project}'
     else:
@@ -120,7 +142,6 @@ def refresh_jit_credentials(project=None):
     if resp.status_code == 200:
         logger.debug(f'API Response: {resp.json()}')
         creds = resp.json()
-        # Writing to file
     return creds
 
 if __name__ == "__main__":
@@ -136,9 +157,11 @@ if __name__ == "__main__":
                     # A note here: in the initial phase, we call the base service endpoint, which returns a list of all credentials
                     # that the user is authorized for (based on their groups).
                     # In the refresh phase, we call the service endpoint by project, based on which credentials are expiring.
-                    refreshed_cred = refresh_jit_credentials(cred['jit_project'])
+                    projectname = cred['projects'][0]
+                    refreshed_cred = refresh_jit_credentials(projectname)
                     new_creds.append(refreshed_cred)
-                if len(new_creds) > 0:    
+                if len(new_creds) > 0:
+                    logger.debug(f"Refreshed credentials for projects: {new_creds}")
                     write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
                 else:
                     logger.info("Attempted to refresh credentials, but response from JIT Proxy was empty. Will retry on next cycle.")
