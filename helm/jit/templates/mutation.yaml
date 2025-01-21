@@ -6,39 +6,28 @@ metadata:
 rules:
   - labelSelectors:
       - dominodatalab.com/workload-type in (Workspace,App,Batch,Scheduled)
-      # - app.kubernetes.io/managed-by != distributed-compute-operator
+      - app.kubernetes.io/managed-by != distributed-compute-operator
       {{- if .Values.users }} 
       - dominodatalab.com/starting-user-username in ({{ join "," .Values.users }})
       {{- end }}
     insertVolumeMounts:
       containerSelector:
         - run
+        - jit
       volumeMounts:
-        - name: log-volume
-          mountPath: /var/log/jit/
-          readOnly: true
-        - mountPath: /etc/.aws/
-          name: jit-aws-creds
-          readOnly: true
+        - mountPath: /etc/.aws
+          name: domino-shared-store-domino-compute-vol
+          subPath: domino/jit/{{ printf "{{ object['metadata']['labels']['dominodatalab.com/starting-user-id'] }}" }}
     insertContainer:
       containerType: app
       spec:
         name:  jit
         image: "{{ .Values.image.repository }}/{{ .Values.image.clientContainer }}:{{ .Values.image.clientAppVersion }}"
         imagePullPolicy: Always
-        volumeMounts:
-          - name: log-volume
-            mountPath: /var/log/jit/
-          - mountPath: /etc/.aws/
-            name: jit-aws-creds
-    insertVolumes:
-      - emptyDir: {}
-        name: jit-aws-creds
-      - emptyDir: {}
-        name: log-volume
     modifyEnv:
       containerSelector:
         - jit
+        - run
       env:
         - name: AWS_CONFIG_FILE
           value: /etc/.aws/profile
@@ -50,9 +39,18 @@ rules:
           value: {{ .Values.env.log_level | default "INFO" }}
   - labelSelectors:
       - dominodatalab.com/workload-type in (Workspace,App,Batch,Scheduled)
+      - app.kubernetes.io/managed-by == distributed-compute-operator
+      - app.kubernetes.io/component != master
+      {{- if .Values.users }} 
+      - dominodatalab.com/starting-user-username in ({{ join "," .Values.users }})
+      {{- end }}
+    insertVolumeMounts:
+      volumeMounts:
+        - mountPath: /etc/.aws
+          name: domino-shared-store-domino-compute-vol
+          subPath: domino/jit/{{ printf "{{ object['metadata']['labels']['dominodatalab.com/starting-user-id'] }}" }}
+          readOnly: true   
     modifyEnv:
-      containerSelector:
-        - run
       env:
         - name: AWS_CONFIG_FILE
-          value: /etc/.aws/profile        
+          value: /etc/.aws/profile  

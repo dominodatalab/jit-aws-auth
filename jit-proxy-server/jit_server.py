@@ -106,18 +106,17 @@ def jit_aws_credential_by_project(project):
 def jit_aws_credentials_dummy(project=None,user_jwt=None):
     check_update_jit_client()
     user_token = user_jwt or request.headers['Authorization'].split()[1]
-    user[constants.fm_projects_attribute] = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
+    user_groups = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
     if loglevel != "DEBUG":
         abort(401,description="Endpoint not available in non-DEBUG mode")
     if verify_user(user_token):
-        user[constants.fm_projects_attribute] = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
         user = jwt.decode(user_token,options={"verify_signature": False})
         if project:
            # Note: we must send the group names as lower-cased to the JIT API (and we write them as lower-cased on the client side),
            # but they are present as upper-cased in the user JWT.
-            user[constants.fm_projects_attribute] = [grp_name for grp_name in user[constants.fm_projects_attribute] if project in grp_name]
+            user_groups = [grp_name for grp_name in user_groups if project in grp_name]
         logger.info(f'Fetching Credentials for user: {user["preferred_username"]}')
-        session_list = create_new_sessions(user_id=user['preferred_username'],user_mail=user['email'],user_group_list=user[constants.fm_projects_attribute])
+        session_list = create_new_sessions(user_id=user['preferred_username'],user_mail=user['email'],user_group_list=user_groups)
         logger.debug(f"Dummy Session List: {session_list}")
         return session_list
     else:
@@ -133,9 +132,9 @@ def jit_aws_credential_by_project_dummy(project):
     return new_credential[0]
 
 @app.route('/user-projects', methods=['GET'])
-def jit_groups(user_jwt=None):
+def jit_groups():
     check_update_jit_client()
-    user_token = user_jwt
+    user_token = request.headers['Authorization'].split()[1]
     if verify_user(user_token):
         user = jwt.decode(user_token,options={"verify_signature": False})
         try:
