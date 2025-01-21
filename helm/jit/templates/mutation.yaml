@@ -53,4 +53,4 @@ rules:
     modifyEnv:
       env:
         - name: AWS_CONFIG_FILE
-          value: /etc/.aws/profile  
+          value: /etc/.aws/profile
