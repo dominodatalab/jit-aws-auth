@@ -12,22 +12,20 @@ poll_jit_interval = os.environ.get("POLL_INTERVAL",10)
 
 session_list = []
 
-# lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
-# logging.basicConfig(
-#     level=lvl,
-#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-#     filename=log_file, filemode='w'
-# )
-# logger = logging.getLogger("werkzeug")
-# handler = logging.StreamHandler(sys.stdout)
-# logger.addHandler(handler)
-
 logger = logging.getLogger('jit_proxy_client')
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
+
+def clear_credentials_dir(dirpath):
+    with os.scandir(dirpath) as entries:
+        for entry in entries:
+            if entry.is_dir():
+                shutil.rmtree(entry.path)
+            else: 
+                os.remove(entry.path)
 
 def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
     config = configparser.ConfigParser()
@@ -40,7 +38,7 @@ def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
             config.add_section(profile_name)
             logger.info(f'Adding AWS cli credentials profile {profile_name}')
         logger.info(f'Adding AWS cli credentials: profile: {profile_name}, jitSessionId: {cred["session_id"]}, AWS Key ID: {cred["accessKeyId"]}')
-        config.set(profile_name,"credential_process",f"{client_bin_dir}/credential-helper --cred-file {aws_credentials_file} --profile {profile_name}")
+        config.set(profile_name,"credential_process",f"{client_bin_dir}/credential-helper -credfile={aws_credentials_file} -profile={profile_name}")
         config.set(profile_name,"jitSessionId",cred["session_id"])
     with open(cred_file_path, "w") as f:
         config.write(f)
@@ -146,6 +144,10 @@ def refresh_jit_credentials(project=None):
 
 if __name__ == "__main__":
     shutdown = shutdown.GracefulShutdown(logger)
+    logger.info("Starting JIT Client Proxy...")
+    logger.info("Clearing credentials directory...")
+    clear_credentials_dir(jit_directory_root)
+    logger.info(f"Copying credential process binaries to {client_bin_dir}...")
     shutil.copytree("/app/clientbin",client_bin_dir)
     while not shutdown.shutdown_signal:
         if os.path.isfile(aws_credentials_file) and os.path.getsize(aws_credentials_file) > 0:
@@ -173,3 +175,5 @@ if __name__ == "__main__":
         if not shutdown.shutdown_signal:
             logger.info(f"Sleeping {poll_jit_interval} seconds until next attempt...")
             time.sleep(poll_jit_interval)
+    logger.info("Clearing credentials directory...")
+    clear_credentials_dir(jit_directory_root)
