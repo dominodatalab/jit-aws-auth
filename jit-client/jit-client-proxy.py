@@ -86,6 +86,7 @@ def read_credentials_file(cred_file_path) -> list[dict]:
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=poll_jit_interval,raise_on_giveup=False)
 def get_domino_user_identity():
+    token = None
     token_endpoint = os.environ.get('DOMINO_API_PROXY','http://localhost:8899')
     access_token_endpoint = token_endpoint + "/access-token"
     logger.warning(f'Invoking  {access_token_endpoint}/')
@@ -124,22 +125,24 @@ def refresh_jit_credentials(project=None):
     #         'session_id': '<str>'
     #     }
     # ]
+    creds = []
     if project:
         url = f'{service_endpoint}/{project}'
     else:
         url = service_endpoint
     user_jwt = get_domino_user_identity()
-    headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + user_jwt,
-    }
-    logger.info(f'Refreshing credentials from JIT URL: {url}')
-    resp = requests.get(url, headers=headers, json={})
-    logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
-    resp.raise_for_status()
-    if resp.status_code == 200:
-        logger.debug(f'API Response: {resp.json()}')
-        creds = resp.json()
+    if user_jwt != None:
+        headers = {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + user_jwt,
+        }
+        logger.info(f'Refreshing credentials from JIT URL: {url}')
+        resp = requests.get(url, headers=headers, json={})
+        logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
+        resp.raise_for_status()
+        if resp.status_code == 200:
+            logger.debug(f'API Response: {resp.json()}')
+            creds = resp.json()
     return creds
 
 if __name__ == "__main__":
