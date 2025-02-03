@@ -2,7 +2,7 @@ import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdow
 from datetime import datetime,timedelta
 
 log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + "app.log"
-aws_credentials_profile = os.environ.get("AWS_SHARED_CREDENTIALS_FILE","/etc/.aws/profile")
+aws_credentials_profile = os.environ.get("AWS_CONFIG_FILE","/etc/.aws/profile")
 jit_directory_root = "/etc/.aws"
 aws_credentials_file = f"{jit_directory_root}/credentials"
 client_bin_dir = f"{jit_directory_root}/bin"
@@ -34,12 +34,13 @@ def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
     logger.debug(f"Credential profiles to write: {log_creds}")
     for cred in aws_credentials:
         profile_name = cred['projects'][0]
-        if not config.has_section(profile_name): 
-            config.add_section(profile_name)
+        profile_str = f'profile {profile_name}'
+        if not config.has_section(profile_str):
+            config.add_section(profile_str)
             logger.info(f'Adding AWS cli credentials profile {profile_name}')
         logger.info(f'Adding AWS cli credentials: profile: {profile_name}, jitSessionId: {cred["session_id"]}, AWS Key ID: {cred["accessKeyId"]}')
-        config.set(profile_name,"credential_process",f"{client_bin_dir}/credential-helper -credfile={aws_credentials_file} -profile={profile_name}")
-        config.set(profile_name,"jitSessionId",cred["session_id"])
+        config.set(profile_str,"credential_process",f"{client_bin_dir}/credential-helper -credfile={aws_credentials_file} -profile={profile_name}")
+        config.set(profile_str,"jitSessionId",cred["session_id"])
     with open(cred_file_path, "w") as f:
         config.write(f)
 
