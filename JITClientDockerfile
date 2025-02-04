@@ -11,7 +11,7 @@ FROM cgr.dev/chainguard/go as client-build
 COPY jit-client/client-src /app
 ENV GOARCH=amd64
 WORKDIR /app
-RUN mkdir /app/static && go build -o static/credential-helper credential-helper.go && go build -o static/test-jit-client test-jit-client.go
+RUN mkdir /app/static && go build -o static/credential-helper credential-helper.go && go build -o static/test-jit-client -ldflags="-extldflags=-static" test-jit-client.go
 # FROM ubuntu:22.04 as client-build
 # RUN apt update && apt install -y --no-install-recommends gcc libc-bin python3 python3-pip python3-dev binutils patchelf && pip install -U pyinstaller staticx
 # COPY jit-client/client-src /app

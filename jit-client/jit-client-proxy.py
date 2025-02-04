@@ -177,7 +177,7 @@ if __name__ == "__main__":
                 write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
                 write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
         if not shutdown.shutdown_signal:
-            logger.info(f"Sleeping {poll_jit_interval} seconds until next attempt...")
+            logger.debug(f"Sleeping {poll_jit_interval} seconds until next attempt...")
             time.sleep(poll_jit_interval)
     logger.info("Clearing credentials directory...")
     clear_credentials_dir(jit_directory_root)
