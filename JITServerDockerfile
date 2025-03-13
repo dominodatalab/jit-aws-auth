@@ -4,7 +4,7 @@ COPY --chown=nonroot:nonroot jit-proxy-server/ /app/jit
 WORKDIR /app/jit
 RUN python -m venv venv
 ENV PATH="/app/jit/venv/bin:$PATH"
-RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt && pip uninstall -y pip
 
 FROM cgr.dev/dominodatalab.com/python:${pythonversion}
 ARG COMMITHASH

@@ -4,7 +4,7 @@ COPY --chown=nonroot:nonroot jit-client /app
 WORKDIR /app
 ENV PATH="/app/venv/bin:$PATH"
 RUN python -m venv venv 
-RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt && pip uninstall -y pip
 RUN mkdir /app/clientbin && chown nonroot:nonroot /app/clientbin
 
 FROM cgr.dev/chainguard/go as client-build
@@ -12,12 +12,6 @@ COPY jit-client/client-src /app
 ENV GOARCH=amd64
 WORKDIR /app
 RUN mkdir /app/static && go build -o static/credential-helper credential-helper.go && go build -o static/test-jit-client -ldflags="-extldflags=-static" test-jit-client.go
-# FROM ubuntu:22.04 as client-build
-# RUN apt update && apt install -y --no-install-recommends gcc libc-bin python3 python3-pip python3-dev binutils patchelf && pip install -U pyinstaller staticx
-# COPY jit-client/client-src /app
-# WORKDIR /app
-# RUN pyinstaller --onefile --clean credential-helper.py && pyinstaller --onefile --clean test-jit-client.py
-# RUN staticx dist/credential-helper static/credential-helper && staticx dist/test-jit-client static/test-jit-client
 
 FROM cgr.dev/dominodatalab.com/python:${pythonversion}
 ARG COMMITHASH
