@@ -1,0 +1,9 @@
+flask
+requests
+configparser
+boto3
+botocore
+aws_secretsmanager_caching
+gunicorn
+PyJWT
+logging

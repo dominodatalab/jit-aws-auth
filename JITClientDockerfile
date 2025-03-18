@@ -1,14 +1,29 @@
-FROM quay.io/domino/python-public:3.8.7-slim
-ADD requirements.txt .
-ENV PATH=$PATH:/app/.local/bin:/app/bin
-ENV PYTHONUNBUFFERED=true
-ENV PYTHONUSERBASE=/home/app
-ENV FLASK_ENV=production
+ARG pythonversion=3.13
+FROM cgr.dev/dominodatalab.com/python:${pythonversion}-dev AS build
+COPY --chown=nonroot:nonroot jit-client /app
+WORKDIR /app
+ENV PATH="/app/venv/bin:$PATH"
+RUN python -m venv venv 
+RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt && pip uninstall -y pip
+RUN mkdir /app/clientbin && chown nonroot:nonroot /app/clientbin
+
+FROM cgr.dev/chainguard/go as client-build
+COPY jit-client/client-src /app
+ENV GOARCH=amd64
+ARG COMMITHASH
+WORKDIR /app
+RUN mkdir /app/static && go build -o static/credential-helper credential-helper.go && go build -o static/test-jit-client -ldflags="-extldflags=-static" test-jit-client.go
+RUN echo $COMMITHASH > /app/static/commithash
+
+FROM cgr.dev/dominodatalab.com/python:${pythonversion}
+ARG COMMITHASH
+ARG RELEASEVER
 ENV LOG_LEVEL=INFO
-RUN pip install --upgrade pip
-RUN pip install --user -r requirements.txt
-RUN apt-get update && apt-get upgrade -y
-RUN mkdir /var/log/jit && chown 1000 /var/log/jit
-ADD jit-client /app
-USER 1000
+ENV PYTHONUNBUFFERED=true
+ENV PATH="/app/venv/bin:$PATH"
+ENV COMMIT=$COMMITHASH
+ENV RELEASE=$RELEASEVER
+COPY --from=build --chown=nonroot:nonroot /app /app
+COPY --from=client-build /app/static /app/clientbin
+WORKDIR /app
 ENTRYPOINT ["python", "/app/jit-client-proxy.py" ]

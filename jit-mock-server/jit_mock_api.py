@@ -1,31 +1,19 @@
-import sys
-import flask
-import os
+import sys,flask,os,json,random,requests,logging,string
 from flask import request
-import json
-import random
-import requests
-import logging
-import string
 from datetime import datetime,timedelta
-
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 
-log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + 'app.log'
-session_file = os.environ.get("JIT_SESSION_FILE",'/app/jit_sessions.json')
-aws_creds_file = os.environ.get("JIT_CREDS_FILE",'/app/aws_creds.json')
+user_sessions = {}
+# session_file = os.environ.get("JIT_SESSION_FILE",'/app/jit_sessions.json')
+# aws_creds_file = os.environ.get("JIT_CREDS_FILE",'/app/aws_creds.json')
 cred_lifetime_seconds = int(os.environ.get("CRED_LIFETIME",3600))
-logger = logging.getLogger("jit-server")
-lvl: str = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
+logger = logging.getLogger('jit_mock_server')
 logging.basicConfig(
-    level=lvl,
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    filename=log_file, filemode='w'
+    stream=sys.stdout
 )
-handler = logging.StreamHandler(sys.stdout)
-logger.addHandler(handler)
-log = logging.getLogger("domino-jit")
 
 # def get_user_name(headers):
 #     domino_host = os.environ.get(
@@ -45,7 +33,6 @@ def get_aws_credentials(session_id,project_name):
     # I've hard-coded the expire time as current + 1h.
     expire_time = datetime.now().astimezone() + timedelta(seconds=cred_lifetime_seconds)
     data = {}
-    data['Status'] = 'Success'
     data['accessKeyId'] = ''.join(random.choices(string.ascii_uppercase, k=22))
     data['secretAccessKey'] = ''.join(random.choices(string.ascii_letters + string.digits, k=40))
     data['sessionToken'] = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
@@ -67,6 +54,7 @@ def create_jit_user_session(user_data):
     session_uid = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
     group_short = user_data.get('applicationShortName',''.join(random.choices(string.ascii_uppercase, k=3)))
     session['session_id'] = f'jit-{user_data["userId"]}-{group_short}-{session_uid}'
+    session['aws_creds'] = []
     return session
 
 # Add'l route below based on ../jit/client/resources/sessions.py
@@ -76,33 +64,29 @@ def get_jit_sessions():
     domino_user_name = request.args.get('sub') # Ref: ../jit/client/resources/sessions.py
     user_project = request.args.get('project')
     logger.debug(f'Fetching JIT Sessions for Domino User {domino_user_name}')
-    with open(session_file) as db_file:
-        data = json.load(db_file)
-    user_sessions = [session for session in data if session['userId'] == domino_user_name and session['project'] == user_project]
+    # with open(session_file) as db_file:
+    #     data = json.load(db_file)
+    user_sessions = [session for session in user_sessions if session['userId'] == domino_user_name and session['project'] == user_project]
     return user_sessions
 
 @app.route('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions/<jit_session_id>',methods=['GET'])
 def get_jit_sessions_by_id(jit_session_id):
     domino_user_name = request.args.get('sub') # Ref: ../jit/client/resources/sessions.py
     logger.debug(f'Fetching JIT Sessions for Domino User {domino_user_name}')
-    with open(session_file) as db_file:
-        data = json.load(db_file)
-    user_sessions = [session for session in data if session['session_id'] == jit_session_id]
+    # with open(session_file) as db_file:
+    #     data = json.load(db_file)
+    user_sessions = [session for session in user_sessions if session['session_id'] == jit_session_id]
     return user_sessions
 
 @app.route('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions/<jit_session_id>/aws-credentials',methods=['GET'])
 def get_jit_aws_creds(jit_session_id,jit_project=None):
+    global user_sessions,aws_creds
     logger.debug(f'Fetching AWS Credentials for session {jit_session_id}')
-    with open(aws_creds_file) as cred_db_file:
-        cred_data = json.load(cred_db_file)
-    session_list = [session['session_id'] for session in cred_data]
-    if jit_session_id not in session_list:
-        new_aws_cred = get_aws_credentials(session_id=jit_session_id,project_name=jit_project)
-        cred_data.append(new_aws_cred)
-        with open(aws_creds_file,'w') as cred_db_file:
-            json.dump(cred_data,cred_db_file,indent=4,separators=(',',': '))
-    aws_creds = [credential for credential in cred_data if credential['session_id'] == jit_session_id][0] # We're expecting only one credential per session, and only want to return one credential per session-id call
-    return aws_creds
+    # with open(aws_creds_file) as cred_db_file:
+    #     cred_data = json.load(cred_db_file)
+    user_aws_creds = user_sessions[jit_session_id]['aws_creds'][0] # We're expecting only one credential per session, and only want to return one credential per session-id call
+    logger.debug(f"User AWS Creds: {user_aws_creds}")
+    return user_aws_creds
 
 @app.route('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions',methods=['POST'])
 def new_jit_session():
@@ -117,12 +101,12 @@ def new_jit_session():
     # }    
     user_data = request.get_json()
     logger.debug(f'Creating JIT Session for Domino User {user_data["userId"]} with Project {user_data["projectName"]}')
-    with open(session_file) as db_file:
-        data = json.load(db_file)
     new_user_session = create_jit_user_session(user_data)
-    data.append(new_user_session)
-    with open(session_file,'w') as db_file:
-        json.dump(data,db_file,indent=4,separators=(',',': '))
+    session_id = new_user_session['session_id']
+    global user_sessions
+    user_sessions.update({session_id:new_user_session})
+    user_session_cred = get_aws_credentials(session_id=new_user_session['session_id'],project_name=new_user_session['project'])
+    user_sessions[session_id]['aws_creds'].append(user_session_cred)
     # Per FM/PT, a POST to this endpoint doesn't return a JIT session, but rather the AWS credentials for the JIT session.
     session_aws_creds = get_jit_aws_creds(jit_session_id=new_user_session['session_id'],jit_project=new_user_session['project'])
     return session_aws_creds
