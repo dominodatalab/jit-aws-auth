@@ -29,13 +29,13 @@ def clear_credentials_dir(dirpath):
 
 def check_update_clientbin():
     commit = None
-    image_commit = os.getenv('COMMITHASH',None)
+    image_commit = os.getenv('COMMIT',None)
     if os.path.isfile(f'{client_bin_dir}/commithash'):
         with open(f'{client_bin_dir}/commithash','r') as f:
             commit = f.read()
     if commit != image_commit or not os.path.isfile(f'{client_bin_dir}/commithash'):
-            logger.info(f"Copying credential process binaries to {client_bin_dir}...")
-            shutil.copytree("/app/clientbin",client_bin_dir)
+        logger.info(f"Copying credential process binaries to {client_bin_dir}...")
+        shutil.copytree("/app/clientbin",client_bin_dir,dirs_exist_ok=True)
 
 def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
     config = configparser.ConfigParser()
