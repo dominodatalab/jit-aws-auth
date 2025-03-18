@@ -27,6 +27,16 @@ def clear_credentials_dir(dirpath):
             else: 
                 os.remove(entry.path)
 
+def check_update_clientbin():
+    commit = None
+    image_commit = os.getenv('COMMITHASH',None)
+    if os.path.isfile(f'{client_bin_dir}/commithash'):
+        with open(f'{client_bin_dir}/commithash','r') as f:
+            commit = f.read()
+        if commit != image_commit:
+            logger.info(f"Copying credential process binaries to {client_bin_dir}...")
+            shutil.copytree("/app/clientbin",client_bin_dir)
+
 def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
     config = configparser.ConfigParser()
     config.read(cred_file_path)
@@ -149,10 +159,7 @@ def refresh_jit_credentials(project=None):
 if __name__ == "__main__":
     shutdown = shutdown.GracefulShutdown(logger)
     logger.info("Starting JIT Client Proxy...")
-    logger.info("Clearing credentials directory...")
-    clear_credentials_dir(jit_directory_root)
-    logger.info(f"Copying credential process binaries to {client_bin_dir}...")
-    shutil.copytree("/app/clientbin",client_bin_dir)
+    check_update_clientbin()
     while not shutdown.shutdown_signal:
         if os.path.isfile(aws_credentials_file) and os.path.getsize(aws_credentials_file) > 0:
             existing_creds = read_credentials_file(aws_credentials_file)
@@ -179,5 +186,5 @@ if __name__ == "__main__":
         if not shutdown.shutdown_signal:
             logger.debug(f"Sleeping {poll_jit_interval} seconds until next attempt...")
             time.sleep(poll_jit_interval)
-    logger.info("Clearing credentials directory...")
-    clear_credentials_dir(jit_directory_root)
+    # logger.info("Clearing credentials directory...")
+    # clear_credentials_dir(jit_directory_root)
