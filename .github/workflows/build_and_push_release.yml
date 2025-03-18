@@ -49,7 +49,7 @@ jobs:
       id: docker-tags-server
       uses: docker/metadata-action@v5
       with:
-        images: quay.io/domino/field/jit
+        images: quay.io/domino/field/jit-server
         tags: |
           type=ref,event=tag,pattern={{raw}}
           type=sha
