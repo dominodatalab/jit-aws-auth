@@ -19,14 +19,6 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-def clear_credentials_dir(dirpath):
-    with os.scandir(dirpath) as entries:
-        for entry in entries:
-            if entry.is_dir():
-                shutil.rmtree(entry.path)
-            else: 
-                os.remove(entry.path)
-
 def check_update_clientbin():
     commit = None
     image_commit = os.getenv('COMMIT',None)
@@ -189,5 +181,3 @@ if __name__ == "__main__":
         if not shutdown.shutdown_signal:
             logger.debug(f"Sleeping {poll_jit_interval} seconds until next attempt...")
             time.sleep(poll_jit_interval)
-    # logger.info("Clearing credentials directory...")
-    # clear_credentials_dir(jit_directory_root)
