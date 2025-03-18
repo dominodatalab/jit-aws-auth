@@ -34,7 +34,7 @@ def check_update_clientbin():
     if os.path.isfile(f'{client_bin_dir}/commithash'):
         logger.debug(f"Reading commit hash from {client_bin_dir}/commithash")
         with open(f'{client_bin_dir}/commithash','r') as f:
-            commit = f.read()
+            commit = f.read().strip()
             logger.debug(f"Commit hash in {client_bin_dir}: {commit}")
     if (commit != image_commit):
         logger.info(f"Copying credential process binaries to {client_bin_dir}...")
