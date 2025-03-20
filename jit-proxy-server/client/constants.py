@@ -1,9 +1,6 @@
-import os,json,botocore,botocore.session,aws_secretsmanager_caching,logging,sys
-from aws_secretsmanager_caching import SecretCache, SecretCacheConfig
+import os,json,boto3,logging,sys
 
-aws_sm_client = botocore.session.get_session().create_client('secretsmanager')
-sm_cache_cfg = SecretCacheConfig(secret_refresh_interval=30)
-sm_cache = SecretCache(config=sm_cache_cfg, client=aws_sm_client)
+aws_sm_client = boto3.client('secretsmanager')
 logger = logging.getLogger('jit_proxy')
 
 jit_config_file = os.environ.get('JIT_CONFIG_FILE', '/etc/config/jit-config/jit.json')
@@ -16,10 +13,18 @@ jit_endpoint = jit_config['jit_endpoint']
 ping_secret_arn = jit_config['ping_secret']
 nuid_secret_arn = jit_config['nuid_secret']
 
+def get_secret_lastrotated(secret_arn):
+    secret_last_rotated = None
+    try:
+        secret_last_rotated = aws_sm_client.describe_secret(secret_arn)['LastRotatedDate']
+    except Exception as e:
+        logger.critical(f"Error retrieving secret metadata {secret_arn}: {e}")
+    return secret_last_rotated
+
 def get_secret(secret_arn):
     secret_value = None
     try:
-        secret_str = sm_cache.get_secret_string(secret_arn)
+        secret_str = aws_sm_client.get_secret_string(secret_arn)
         secret_value = json.loads(secret_str)
     except Exception as e:
         logger.critical(f"Error retrieving secret {secret_arn}: {e}")
@@ -27,6 +32,8 @@ def get_secret(secret_arn):
 
 ping_dict = get_secret(ping_secret_arn)
 nuid_dict = get_secret(nuid_secret_arn)
+secret_metadata = [{'type':'ping','arn': ping_secret_arn, 'last_rotated': get_secret_lastrotated(ping_secret_arn)},
+                   {'type':'nuid','arn': nuid_secret_arn, 'last_rotated': get_secret_lastrotated(nuid_secret_arn)}]
 
 client_secret = ping_dict['client-secret']
 client_id = ping_dict['client-id']

@@ -39,10 +39,10 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
         self._client_secret = constants.client_secret
         self._access_token: Optional[str] = None
         self._refresh_token: Optional[str] = None
-        self._access_token_expiry_time: Optional[datetime.datetime] = None
+        self.access_token_expiry_time: Optional[datetime.datetime] = None
         self._r_username = constants.r_username
         self._r_password = constants.r_password
-
+        self._secrets_metadata = constants.secret_metadata
 
         encoded_client = b64encode(
             f'{self._client_id}:{self._client_secret}'.encode('utf-8')
@@ -77,7 +77,7 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
             full_url = urljoin(self._jit_endpoint, url)
 
         # Get access token and generate auth header
-        access_token = self._get_access_token()
+        access_token = self.get_access_token()
         headers = {
             'X-fnma-jws-token': access_token,
             **(kwargs.get('headers') or {})
@@ -90,7 +90,7 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
 
         return super().request(method, full_url, headers=headers, **kwargs)
 
-    def _get_access_token(self) -> str:
+    def get_access_token(self) -> str:
         """
         Authenticates the client with the configured authorization server
         and returns the resulting access token
@@ -102,7 +102,7 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
             str: The access token
         """
         now = datetime.datetime.now()
-        if self._access_token and self._access_token_expiry_time and self._access_token_expiry_time - now > datetime.timedelta(
+        if self._access_token and self.access_token_expiry_time and self.access_token_expiry_time - now > datetime.timedelta(
                 seconds=constants.minimum_token_validity_required_in_seconds):
             return self._access_token
 
@@ -112,7 +112,7 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
                 resp: requests.Response = requests.post(self._token_endpoint, headers=self._auth_header, params=params)
                 resp_parsed = resp.json()
                 self._access_token = resp_parsed['access_token']
-                self._access_token_expiry_time = now + datetime.timedelta(seconds=resp_parsed['expires_in'])
+                self.access_token_expiry_time = now + datetime.timedelta(seconds=resp_parsed['expires_in'])
                 return self._access_token
             except (HTTPException, JSONDecodeError, KeyError) as error:
                 logger.debug('Failed to retrieve access token using refresh token',
@@ -130,7 +130,7 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
                                                     headers=self._auth_header, data=data)
             resp_parsed = resp.json()
             self._access_token = resp_parsed['access_token']
-            self._access_token_expiry_time = now + datetime.timedelta(seconds=resp_parsed['expires_in'])
+            self.access_token_expiry_time = now + datetime.timedelta(seconds=resp_parsed['expires_in'])
             self._refresh_token = resp_parsed['refresh_token']
         except (HTTPException, JSONDecodeError, KeyError) as error:
             raise InternalServerError('Failed to retrieve access token') from error
@@ -140,5 +140,33 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
 
         # Return access token
         return self._access_token
+    
+    def refresh_secrets_data(self) -> None:
+        """
+        Refreshes the secrets data from AWS Secrets Manager
+        """
+        for secret in self._secrets_metadata:
+            check_rotation_time = constants.get_secret_lastrotated(secret['arn'])
+            if check_rotation_time and check_rotation_time > secret['last_rotated']:
+                logger.info(f"Secret {secret['type']} has been rotated. Refreshing secret data...")
+                if secret['type'] == 'ping':
+                    self._client_id = constants.get_secret(secret['arn'])['client-id']
+                    self._client_secret = constants.get_secret(secret['arn'])['client-secret']
+                    self._client_secret = constants.get_secret(secret['arn'])['auth-server-url']
+                if secret['type'] == 'nuid':
+                    self._r_username = constants.get_secret(secret['arn'])['username']
+                    self._r_password = constants.get_secret(secret['arn'])['password']
+    
+    def refresh_jit_access_token(self) -> None:
+        """
+        Refreshes the access JIT API access token
+        """
+        now = datetime.datetime.now()
+        if self.access_token_expiry_time and self.access_token_expiry_time < now:
+            logger.info("JIT Client OAuth token expired. Refreshing...")
+            self.get_access_token()
+
+            
+            
 
 

@@ -24,11 +24,8 @@ def create_app():
     return app
 
 def check_update_jit_client():
-    now = datetime.now()
     global client
-    if client._access_token_expiry_time and client._access_token_expiry_time < now:
-        logger.info("JIT Client OAuth token expired. Refreshing...")
-        client = JitAccessEngineClient()
+    client.refresh_jit_access_token()
 
 def verify_user(user_jwt):
     headers = {
@@ -148,6 +145,8 @@ def jit_groups():
 
 @app.route('/healthz', methods=['GET'])
 def healthz():
+    global client
+    client.refresh_secrets_data()
     return {}
 
 @app.route('/test', methods=['GET'])
