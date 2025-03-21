@@ -23,26 +23,27 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
     """
 
     ##Mount from Secrets - TO REMOVE
-    JIT_ENDPOINT = constants.jit_endpoint
-    JIT_ENDPOINT = constants.jit_endpoint
-    TOKEN_ENDPOINT = constants.token_endpoint
-    CLIENT_ID = constants.client_id
-    CLIENT_SECRET = constants.client_secret
+    # JIT_ENDPOINT = constants.jit_endpoint
+    # JIT_ENDPOINT = constants.jit_endpoint
+    # TOKEN_ENDPOINT = constants.token_endpoint
+    # CLIENT_ID = constants.client_id
+    # CLIENT_SECRET = constants.client_secret
 
     def __init__(self, *args: List[Any], **kwargs: Dict[str, Any]):
         super().__init__(*args, **kwargs)
         # Retrieve settings
-        self._jit_endpoint = constants.jit_endpoint
+        self.cfg = constants.SecretConfig(constants.jit_config)
+        self._jit_endpoint = self.cfg.jit_endpoint
         logger.info("Engine Endpoint: %s", self._jit_endpoint)
-        self._token_endpoint = constants.token_endpoint
-        self._client_id = constants.client_id
-        self._client_secret = constants.client_secret
+        self._token_endpoint = self.cfg.ping_token_endpoint
+        self._client_id = self.cfg.ping_client_id
+        self._client_secret = self.cfg.ping_client_secret
         self._access_token: Optional[str] = None
         self._refresh_token: Optional[str] = None
         self.access_token_expiry_time: Optional[datetime.datetime] = None
-        self._r_username = constants.r_username
-        self._r_password = constants.r_password
-        self._secrets_metadata = constants.secret_metadata
+        self._r_username = self.cfg.nuid_username
+        self._r_password = self.cfg.nuid_password
+        self._secrets_metadata = self.cfg.secret_metadata
 
         encoded_client = b64encode(
             f'{self._client_id}:{self._client_secret}'.encode('utf-8')
@@ -145,17 +146,13 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
         """
         Refreshes the secrets data from AWS Secrets Manager
         """
-        for secret in self._secrets_metadata:
-            check_rotation_time = constants.get_secret_lastrotated(secret['arn'])
-            if check_rotation_time and check_rotation_time > secret['last_rotated']:
-                logger.info(f"Secret {secret['type']} has been rotated. Refreshing secret data...")
-                if secret['type'] == 'ping':
-                    self._client_id = constants.get_secret(secret['arn'])['client-id']
-                    self._client_secret = constants.get_secret(secret['arn'])['client-secret']
-                    self._client_secret = constants.get_secret(secret['arn'])['auth-server-url']
-                if secret['type'] == 'nuid':
-                    self._r_username = constants.get_secret(secret['arn'])['username']
-                    self._r_password = constants.get_secret(secret['arn'])['password']
+        self.cfg.check_secret_rotation()
+        self._token_endpoint = self.cfg.ping_token_endpoint
+        self._client_id = self.cfg.ping_client_id
+        self._client_secret = self.cfg.ping_client_secret
+        self._r_username = self.cfg.nuid_username
+        self._r_password = self.cfg.nuid_password
+        self._secrets_metadata = self.cfg.secret_metadata
     
     def refresh_jit_access_token(self) -> None:
         """
