@@ -53,7 +53,7 @@ spec:
             path: /healthz
             port: {{ .Values.env.containerPort | default 5000 }}
             scheme: HTTP
-          initialDelaySeconds: 20
+          initialDelaySeconds: 10
           failureThreshold: 2
           timeoutSeconds: 5
         readinessProbe:
@@ -61,7 +61,7 @@ spec:
             path: /healthz
             port: {{ .Values.env.containerPort | default 5000 }}
             scheme: HTTP
-          initialDelaySeconds: 20
+          initialDelaySeconds: 10
           failureThreshold: 2
           timeoutSeconds: 5
         imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
