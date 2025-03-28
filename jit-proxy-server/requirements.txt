@@ -2,6 +2,7 @@ flask
 requests
 configparser
 boto3
+botocore
 gunicorn
 PyJWT
 logging

@@ -62,8 +62,8 @@ class SecretConfig:
             self.ping_token_endpoint = self._ping_dict['auth-server-url']
         if secret_metadata['type'] == 'nuid':
             self._nuid_dict = self.get_secret(secret_metadata['arn'])
-            self.nuid_username = self.nuid_dict['username']
-            self.nuid_password = self.nuid_dict['password']
+            self.nuid_username = self._nuid_dict['username']
+            self.nuid_password = self._nuid_dict['password']
     
     def check_secret_rotation(self):
         for secret in self.secret_metadata:
