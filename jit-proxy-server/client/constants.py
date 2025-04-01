@@ -71,6 +71,9 @@ class SecretConfig:
             if check_rotation_time and check_rotation_time > secret['last_rotated']:
                 logger.info(f"Secret {secret['type']} has been rotated. Refreshing secret data...")
                 self.refresh_secret_data(secret)
+                self.secret_metadata.remove(secret)
+                self.secret_metadata.append({'type':secret['type'], 'arn': secret['arn'], 'last_rotated': check_rotation_time})
+                logger.info(f"Secret metadata for {secret['type']} has been updated.")
 
 
 
