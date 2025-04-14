@@ -42,6 +42,15 @@ func getJITUserProjects(tokenString string, jitURL string) string {
 	return resp.String()
 }
 
+func testProjectCredentials(tokenString string, projectID string, jitURL string) string {
+	resp, err := reqWithToken(tokenString, jitURL+"/"+projectID)
+	if err != nil {
+		fmt.Printf("Error getting credentials for project %s. Status code: %s, Error %s\n", projectID, resp, err)
+		return resp.String()
+	}
+	return resp.String()
+}
+
 func parseJWT(tokenString string) *jwt.Token {
 	parsedJWT, _, err := jwt.NewParser().ParseUnverified(string(tokenString), make(jwt.MapClaims))
 	if err != nil {
@@ -80,6 +89,18 @@ func main() {
 	fmt.Printf("User JWT contents: \n%v\n", string(pretty_print))
 	fmt.Printf("Gathering User project list from JIT Proxy...\n")
 	user_projects := getJITUserProjects(user, user_projects_endpoint)
-	fmt.Printf("User projects: %s\n", user_projects)
-
+	fmt.Printf("User projects: %s\n", string(user_projects))
+	var project_array []string
+	json.Unmarshal([]byte(user_projects), &project_array)
+	fmt.Printf("Testing project credentials for project list: %s\n", project_array)
+	for _, project := range project_array {
+		project_credential_endpoint := jit_endpoint_base + "/jit_sessions/" + project
+		project_credentials := testProjectCredentials(user, project, project_credential_endpoint)
+		pretty_print, err := json.MarshalIndent(project_credentials, "", "    ")
+		if err != nil {
+			fmt.Printf("Error getting credentials for project %s: %s\n", project, project_credentials)
+		} else {
+			fmt.Printf("Project %s credentials: \n%v\n", project, string(pretty_print))
+		}
+	}
 }
