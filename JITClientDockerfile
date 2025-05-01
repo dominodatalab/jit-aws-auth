@@ -12,7 +12,7 @@ COPY jit-client/client-src /app
 ENV GOARCH=amd64
 ARG COMMITHASH
 WORKDIR /app
-RUN mkdir /app/static && go build -o static/credential-helper credential-helper.go && go build -o static/test-jit-client -ldflags="-extldflags=-static" test-jit-client.go
+RUN mkdir /app/static && go build -o static/credential-helper credential-helper.go && go build -o static/test-jit-client -ldflags="-extldflags=-static" test-jit-client.go && rm go.*
 RUN echo $COMMITHASH > /app/static/commithash
 
 FROM cgr.dev/dominodatalab.com/python:${pythonversion}
