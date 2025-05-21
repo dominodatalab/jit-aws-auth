@@ -7,7 +7,7 @@ RUN python -m venv venv
 RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt && pip uninstall -y pip
 RUN mkdir /app/clientbin && chown nonroot:nonroot /app/clientbin
 
-FROM cgr.dev/chainguard/go as client-build
+FROM cgr.dev/chainguard/go AS client-build
 COPY jit-client/client-src /app
 ENV GOARCH=amd64
 ARG COMMITHASH

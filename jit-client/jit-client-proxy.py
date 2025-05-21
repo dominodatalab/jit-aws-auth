@@ -71,6 +71,7 @@ def convert_jit_api_to_aws_creds(jit_creds:list[dict]) -> dict[dict]:
                 "Expiration": expiration_time
             }
         else:
+            del cred['projects']
             cred_dict[profile_name] = cred
     logger.debug(f"Credentials to write: {cred_dict}")
     return cred_dict
@@ -174,7 +175,7 @@ if __name__ == "__main__":
                     existing_creds.remove(cred)
                 mux_creds = [*existing_creds,*new_creds]      
                 if len(new_creds) > 0:
-                    logger.debug(f"Refreshed credentials for projects: {new_creds}")
+                    logger.debug(f"Refreshed credentials for projects: {mux_creds}")
                     write_credentials_file(aws_credentials=mux_creds,cred_file_path=aws_credentials_file)
                 else:
                     logger.info("Attempted to refresh credentials, but response from JIT Proxy was empty. Will retry on next cycle.")
