@@ -61,34 +61,25 @@ def convert_jit_api_to_aws_creds(jit_creds:list[dict]) -> dict[dict]:
     cred_dict = {}
     for cred in jit_creds:
         profile_name = cred['projects'][0]
-        expiration_time = datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z').isoformat()
-        cred_dict[profile_name] = {
-            "Version": 1,
-            "AccessKeyId": cred["accessKeyId"],
-            "SecretAccessKey": cred["secretAccessKey"],
-            "SessionToken": cred["sessionToken"],
-            "Expiration": expiration_time
-        }
+        if 'Version' not in cred:            
+            expiration_time = datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z').isoformat()
+            cred_dict[profile_name] = {
+                "Version": 1,
+                "AccessKeyId": cred["accessKeyId"],
+                "SecretAccessKey": cred["secretAccessKey"],
+                "SessionToken": cred["sessionToken"],
+                "Expiration": expiration_time
+            }
+        else:
+            cred_dict[profile_name] = cred
     logger.debug(f"Credentials to write: {cred_dict}")
     return cred_dict
 
-def convert_aws_creds_to_jit_api(aws_creds) -> list[dict]:
+def convert_aws_creds_to_jit_api(aws_creds:dict[dict]) -> list[dict]:
     cred_list = []
-    if type(aws_creds) == dict:
-        for key,cred in aws_creds.items():
-                cred['projects'] = [key]
-                cred_list.append(cred)
-    elif type(aws_creds) == list:
-        for cred in aws_creds:
-            if 'Version' in cred:
-                cred_dict = {}
-                # We have to account for the possibility that we have AWS-formatted credentials present in an existing dict. 
-                # The JIT API does not use the "Version" key, so this is a good way to check if we need to convert the credentials.
-                cred_dict['accessKeyId'] = cred['AccessKeyId']
-                cred_dict['secretAccessKey'] = cred['SecretAccessKey']
-                cred_dict['sessionToken'] = cred['SessionToken']
-                cred_dict['expiration'] = cred['Expiration']
-                cred_list.append(cred_dict)
+    for key,cred in aws_creds.items():
+            cred['projects'] = [key]
+            cred_list.append(cred)
     return cred_list
 
 def write_credentials_file(aws_credentials:list[dict],cred_file_path):
@@ -169,8 +160,8 @@ if __name__ == "__main__":
     check_update_clientbin()
     while not shutdown.shutdown_signal:
         if os.path.isfile(aws_credentials_file) and os.path.getsize(aws_credentials_file) > 0:
-            existing_creds = read_credentials_file(aws_credentials_file) #list[dict]
-            expiring_creds = check_credential_expiration(existing_creds) #list[dict]
+            existing_creds = read_credentials_file(aws_credentials_file)
+            expiring_creds = check_credential_expiration(existing_creds)
             if len(expiring_creds) > 0:
                 new_creds = []
                 for cred in expiring_creds:
@@ -181,12 +172,9 @@ if __name__ == "__main__":
                     refreshed_cred = refresh_jit_credentials(projectname)
                     new_creds.append(refreshed_cred)
                     existing_creds.remove(cred)
-                # Since the format of the credential dict is different between the JIT API and the AWS credentials file, we need to convert the
-                # existing credentials to the JIT API format before merging them with the new credentials.
-                jit_api_converted_creds = convert_aws_creds_to_jit_api(existing_creds)
-                mux_creds = [*jit_api_converted_creds,*new_creds]
-                if len(mux_creds) > 0:
-                    logger.debug(f"Refreshed credentials for projects: {mux_creds}")
+                mux_creds = [*existing_creds,*new_creds]      
+                if len(new_creds) > 0:
+                    logger.debug(f"Refreshed credentials for projects: {new_creds}")
                     write_credentials_file(aws_credentials=mux_creds,cred_file_path=aws_credentials_file)
                 else:
                     logger.info("Attempted to refresh credentials, but response from JIT Proxy was empty. Will retry on next cycle.")
