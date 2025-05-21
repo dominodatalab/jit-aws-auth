@@ -72,11 +72,23 @@ def convert_jit_api_to_aws_creds(jit_creds:list[dict]) -> dict[dict]:
     logger.debug(f"Credentials to write: {cred_dict}")
     return cred_dict
 
-def convert_aws_creds_to_jit_api(aws_creds:dict[dict]) -> list[dict]:
+def convert_aws_creds_to_jit_api(aws_creds) -> list[dict]:
     cred_list = []
-    for key,cred in aws_creds.items():
-            cred['projects'] = [key]
-            cred_list.append(cred)
+    if type(aws_creds) == dict:
+        for key,cred in aws_creds.items():
+                cred['projects'] = [key]
+                cred_list.append(cred)
+    elif type(aws_creds) == list:
+        for cred in aws_creds:
+            if 'Version' in cred:
+                cred_dict = {}
+                # We have to account for the possibility that we have AWS-formatted credentials present in an existing dict. 
+                # The JIT API does not use the "Version" key, so this is a good way to check if we need to convert the credentials.
+                cred_dict['accessKeyId'] = cred['AccessKeyId']
+                cred_dict['secretAccessKey'] = cred['SecretAccessKey']
+                cred_dict['sessionToken'] = cred['SessionToken']
+                cred_dict['expiration'] = cred['Expiration']
+                cred_list.append(cred_dict)
     return cred_list
 
 def write_credentials_file(aws_credentials:list[dict],cred_file_path):
@@ -157,8 +169,8 @@ if __name__ == "__main__":
     check_update_clientbin()
     while not shutdown.shutdown_signal:
         if os.path.isfile(aws_credentials_file) and os.path.getsize(aws_credentials_file) > 0:
-            existing_creds = read_credentials_file(aws_credentials_file)
-            expiring_creds = check_credential_expiration(existing_creds)
+            existing_creds = read_credentials_file(aws_credentials_file) #list[dict]
+            expiring_creds = check_credential_expiration(existing_creds) #list[dict]
             if len(expiring_creds) > 0:
                 new_creds = []
                 for cred in expiring_creds:
