@@ -61,6 +61,7 @@ def convert_jit_api_to_aws_creds(jit_creds:list[dict]) -> dict[dict]:
     cred_dict = {}
     for cred in jit_creds:
         profile_name = cred['projects'][0]
+        # Here we have JIT-formatted credentials. We need to convert them to AWS format (see above) before writing.
         if 'Version' not in cred:            
             expiration_time = datetime.strptime(cred['expiration'],'%Y-%m-%d %H:%M:%S%z').isoformat()
             cred_dict[profile_name] = {
@@ -70,6 +71,8 @@ def convert_jit_api_to_aws_creds(jit_creds:list[dict]) -> dict[dict]:
                 "SessionToken": cred["sessionToken"],
                 "Expiration": expiration_time
             }
+        # This is the situation where we have an existing set of AWS-formatted credentials.
+        # Just need to modify the k/v structure back to what it originally was.
         else:
             del cred['projects']
             cred_dict[profile_name] = cred
