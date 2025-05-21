@@ -168,9 +168,11 @@ if __name__ == "__main__":
                     projectname = cred['projects'][0]
                     refreshed_cred = refresh_jit_credentials(projectname)
                     new_creds.append(refreshed_cred)
-                if len(new_creds) > 0:
-                    logger.debug(f"Refreshed credentials for projects: {new_creds}")
-                    write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
+                    existing_creds.remove(cred)
+                mux_creds = [*existing_creds,*new_creds]
+                if len(mux_creds) > 0:
+                    logger.debug(f"Refreshed credentials for projects: {mux_creds}")
+                    write_credentials_file(aws_credentials=mux_creds,cred_file_path=aws_credentials_file)
                 else:
                     logger.info("Attempted to refresh credentials, but response from JIT Proxy was empty. Will retry on next cycle.")
         else:
