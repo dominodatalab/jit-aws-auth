@@ -169,7 +169,10 @@ if __name__ == "__main__":
                     refreshed_cred = refresh_jit_credentials(projectname)
                     new_creds.append(refreshed_cred)
                     existing_creds.remove(cred)
-                mux_creds = [*existing_creds,*new_creds]
+                # Since the format of the credential dict is different between the JIT API and the AWS credentials file, we need to convert the
+                # existing credentials to the JIT API format before merging them with the new credentials.
+                jit_api_converted_creds = convert_aws_creds_to_jit_api(existing_creds)
+                mux_creds = [*jit_api_converted_creds,*new_creds]
                 if len(mux_creds) > 0:
                     logger.debug(f"Refreshed credentials for projects: {mux_creds}")
                     write_credentials_file(aws_credentials=mux_creds,cred_file_path=aws_credentials_file)
