@@ -8,7 +8,8 @@ aws_credentials_file = f"{jit_directory_root}/credentials"
 client_bin_dir = f"{jit_directory_root}/bin"
 service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT","http://jit-svc.domino-field")
 token_min_expiry_in_seconds = os.environ.get("TOKEN_MIN",300)
-poll_jit_interval = os.environ.get("POLL_INTERVAL",10)
+poll_jit_interval = os.environ.get("POLL_INTERVAL",60)
+request_timeout = os.environ.get("REQUEST_TIMEOUT",30)
 
 session_list = []
 
@@ -97,7 +98,7 @@ def read_credentials_file(cred_file_path) -> list[dict]:
         config_dict = convert_aws_creds_to_jit_api(json.load(f))
     return config_dict
 
-@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=poll_jit_interval,raise_on_giveup=False)
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
 def get_domino_user_identity():
     token = None
     token_endpoint = os.environ.get('DOMINO_API_PROXY','http://localhost:8899')
@@ -126,7 +127,7 @@ def check_credential_expiration(credential_list:list[dict]) -> list[dict]:
             expiring_creds.append(cred)
     return expiring_creds
 
-@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=poll_jit_interval,raise_on_giveup=False)
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
 def refresh_jit_credentials(project=None):
     # The structure we're expecting from the JIT Proxy:
     # [ 
@@ -138,13 +139,14 @@ def refresh_jit_credentials(project=None):
     #         'session_id': '<str>'
     #     }
     # ]
-    creds = []
+    creds = None
     if project:
         url = f'{service_endpoint}/{project}'
     else:
         url = service_endpoint
     user_jwt = get_domino_user_identity()
     if user_jwt != None:
+        creds = []
         headers = {
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + user_jwt,
@@ -174,8 +176,9 @@ if __name__ == "__main__":
                     # In the refresh phase, we call the service endpoint by project, based on which credentials are expiring.
                     projectname = cred['projects'][0]
                     refreshed_cred = refresh_jit_credentials(projectname)
-                    new_creds.append(refreshed_cred)
-                    existing_creds.remove(cred)
+                    if refreshed_cred != None:
+                        new_creds.append(refreshed_cred)
+                        existing_creds.remove(cred)
                 mux_creds = [*existing_creds,*new_creds]      
                 if len(new_creds) > 0:
                     logger.debug(f"Refreshed credentials for projects: {mux_creds}")
