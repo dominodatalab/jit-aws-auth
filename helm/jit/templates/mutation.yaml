@@ -37,6 +37,15 @@ rules:
           value: http://localhost:8899
         - name: LOG_LEVEL
           value: {{ .Values.env.log_level | default "INFO" }}
+        {{ - if .Values.env.poll_interval }}
+        - name: POLL_INTERVAL
+          value: {{ .Values.env.poll_interval | quote }}
+        {{- end }}
+        {{ - if (lt .Values.env.request_timeout .Values.env.poll_interval) }}
+        {{- if .Values.env.request_timeout }}
+        - name: REQUEST_TIMEOUT
+          value: {{ .Values.env.request_timeout | quote }}
+        {{- end }}        
   - labelSelectors:
       - dominodatalab.com/workload-type in (Workspace,App,Batch,Scheduled)
       - app.kubernetes.io/managed-by == distributed-compute-operator
