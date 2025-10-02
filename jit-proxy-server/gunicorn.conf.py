@@ -5,14 +5,14 @@ from os import getenv, makedirs
 from os.path import exists
 
 bind_addr = os.getenv('FLASK_HOST','0.0.0.0')
-bind_port = os.getenv('FLASK_PORT','6000')
+bind_port = os.getenv('FLASK_PORT','5000')
 worker_count = os.getenv('FLASK_WORKERS',1)
 
 bind = f"{bind_addr}:{bind_port}"
 workers = worker_count
-certfile = "/ssl/tls.crt"
-keyfile = "/ssl/tls.key"
-reload_extra_files = "/ssl/tls.crt"
+# certfile = "/ssl/tls.crt"
+# keyfile = "/ssl/tls.key"
+# reload_extra_files = "/ssl/tls.crt"
 
 # patch forked gevent processes for psycopg2
 def post_fork(server, worker):
