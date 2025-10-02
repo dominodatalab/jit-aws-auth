@@ -193,9 +193,6 @@ if __name__ == "__main__":
             if len(expiring_creds) > 0:
                 new_creds = []
                 for cred in expiring_creds:
-                    # A note here: in the initial phase, we call the base service endpoint, which returns a list of all credentials
-                    # that the user is authorized for (based on their groups).
-                    # In the refresh phase, we call the service endpoint by project, based on which credentials are expiring.
                     projectname = cred['projects'][0]
                     refreshed_cred = refresh_jit_credentials(projectname)
                     if refreshed_cred != None:
@@ -210,12 +207,15 @@ if __name__ == "__main__":
         else:
             user_jwt = get_domino_user_identity()
             if user_jwt:
+                new_creds = []
                 user_projects = get_user_projects(user_jwt)
                 for project in user_projects:
-                    new_creds = refresh_jit_credentials(project=project, jwt=user_jwt)
-                    if new_creds != None and len(new_creds) > 0:
-                        write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
-                        write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
+                    cred = refresh_jit_credentials(project=project, jwt=user_jwt)
+                    if len(cred) > 0:
+                        new_creds.append(cred)
+                if len(new_creds) > 0:
+                    write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
+                    write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
         if not shutdown.shutdown_signal:
             logger.debug(f"Sleeping {poll_jit_interval} seconds until next attempt...")
             time.sleep(poll_jit_interval)
