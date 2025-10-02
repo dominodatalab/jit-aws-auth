@@ -48,6 +48,8 @@ spec:
           value: {{ .Values.env.log_level | default "INFO" }}
         - name: FLASK_WORKERS
           value: "{{ .Values.env.flask_workers | default 5 }}"
+        - name: TESTING_MODE
+          value: "{{ .Values.testing | default false }}"
         ports:
         - containerPort: {{ .Values.env.containerPort | default 5000 }}
         livenessProbe:

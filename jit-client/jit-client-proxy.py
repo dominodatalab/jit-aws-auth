@@ -1,4 +1,5 @@
 import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdown,shutil,backoff
+from urllib.parse import urlparse
 from datetime import datetime,timedelta
 
 log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + "app.log"
@@ -104,7 +105,11 @@ def get_user_projects(user_jwt:str) -> list[str]:
             "Content-Type": "application/json",
             "Authorization": "Bearer " + user_jwt,
     }
-    request_endpoint = f'{service_endpoint}/user-projects'
+    baseurl = urlparse(service_endpoint)
+    if "dummy" in baseurl.path:
+        request_endpoint = f'{baseurl.scheme}://{baseurl.netloc}/dummy/user-projects'
+    else:
+        request_endpoint = f'{baseurl.scheme}://{baseurl.netloc}/user-projects'
     logger.info(f'Fetching user projects from {request_endpoint}')
     resp = requests.get(request_endpoint, headers=headers)
     logger.info(f'User groups from {request_endpoint}: {resp.json()}')
