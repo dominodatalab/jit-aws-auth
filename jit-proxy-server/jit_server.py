@@ -4,6 +4,7 @@ from flask import Flask,request,abort
 from datetime import datetime
 
 loglevel = os.environ.get("LOG_LEVEL","INFO").upper()
+dummy_mode = bool(os.environ.get("TESTING_MODE","false").lower())
 # We want to use the same logger object as the JIT client,
 # so we need to set it up before importing the client module.
 logger = logging.getLogger('jit_proxy_server')
@@ -99,35 +100,6 @@ def jit_aws_credential_by_project(project):
     # endpoint will return only a single credential dict based on the project value.
     return new_credential[0]
 
-@app.route('/jit-sessions-dummy', methods=['GET'])
-def jit_aws_credentials_dummy(project=None,user_jwt=None):
-    check_update_jit_client()
-    user_token = user_jwt or request.headers['Authorization'].split()[1]
-    user_groups = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
-    if loglevel != "DEBUG":
-        abort(401,description="Endpoint not available in non-DEBUG mode")
-    if verify_user(user_token):
-        user = jwt.decode(user_token,options={"verify_signature": False})
-        if project:
-           # Note: we must send the group names as lower-cased to the JIT API (and we write them as lower-cased on the client side),
-           # but they are present as upper-cased in the user JWT.
-            user_groups = [grp_name for grp_name in user_groups if project in grp_name]
-        logger.info(f'Fetching Credentials for user: {user["preferred_username"]}')
-        session_list = create_new_sessions(user_id=user['preferred_username'],user_mail=user['email'],user_group_list=user_groups)
-        logger.debug(f"Dummy Session List: {session_list}")
-        return session_list
-    else:
-        abort(401,description="Invalid User JWT")
-
-@app.route('/jit-sessions-dummy/<project>', methods=['GET'])
-def jit_aws_credential_by_project_dummy(project):
-    check_update_jit_client()
-    user_jwt = request.headers['Authorization'].split()[1]
-    new_credential = jit_aws_credentials_dummy(project=project,user_jwt=user_jwt)
-    # Note: while the /jit-sessions URL returns a list of all of the credentials for a given user, this
-    # endpoint will return only a single credential dict based on the project value.
-    return new_credential[0]
-
 @app.route('/user-projects', methods=['GET'])
 def jit_groups():
     check_update_jit_client()
@@ -142,6 +114,45 @@ def jit_groups():
     else:
         abort(401,description="Invalid User JWT")
 
+@app.route('/dummy/user-projects', methods=['GET'])
+def jit_groups_dummy():
+    dummy_groups = ['domino1','domino2']
+    if dummy_mode:
+        return dummy_groups
+    else:
+        abort(404,description="Endpoint not available outside of TESTING_MODE")
+
+
+@app.route('/dummy/jit-sessions', methods=['GET'])
+def jit_aws_credentials_dummy(project=None,user_jwt=None):
+    check_update_jit_client()
+    user_token = user_jwt or request.headers['Authorization'].split()[1]
+    user_groups = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
+    if not dummy_mode:
+        abort(404,description="Endpoint not available outside of TESTING_MODE")
+    if verify_user(user_token):
+        user = jwt.decode(user_token,options={"verify_signature": False})
+        if project:
+           # Note: we must send the group names as lower-cased to the JIT API (and we write them as lower-cased on the client side),
+           # but they are present as upper-cased in the user JWT.
+            user_groups = [grp_name for grp_name in user_groups if project in grp_name]
+        logger.info(f'Fetching Credentials for user: {user["preferred_username"]}')
+        session_list = create_new_sessions(user_id=user['preferred_username'],user_mail=user['email'],user_group_list=user_groups)
+        logger.debug(f"Dummy Session List: {session_list}")
+        return session_list
+    else:
+        abort(401,description="Invalid User JWT")
+
+@app.route('/dummy/jit-sessions/<project>', methods=['GET'])
+def jit_aws_credential_by_project_dummy(project):
+    if dummy_mode:
+        user_jwt = request.headers['Authorization'].split()[1]
+        new_credential = jit_aws_credentials_dummy(project=project,user_jwt=user_jwt)
+        # Note: while the /jit-sessions URL returns a list of all of the credentials for a given user, this
+        # endpoint will return only a single credential dict based on the project value.
+        return new_credential[0]
+    else:
+        abort(404,description="Endpoint not available outside of TESTING_MODE")
 
 @app.route('/healthz', methods=['GET'])
 def healthz():

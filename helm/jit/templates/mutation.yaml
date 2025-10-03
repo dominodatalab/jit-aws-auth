@@ -32,20 +32,19 @@ rules:
         - name: AWS_CONFIG_FILE
           value: /etc/.aws/profile
         - name: DOMINO_JIT_ENDPOINT
-          value: {{ if .Values.testing }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions-dummy"{{ else }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"{{ end }}
+          value: {{ if .Values.testing }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/dummy/jit-sessions"{{ else }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"{{ end }}
         - name: DOMINO_API_PROXY
           value: http://localhost:8899
         - name: LOG_LEVEL
           value: {{ .Values.env.log_level | default "INFO" }}
-        {{ - if .Values.env.poll_interval }}
+        {{- if .Values.env.poll_interval }}
         - name: POLL_INTERVAL
-          value: {{ .Values.env.poll_interval | quote }}
+          value: "{{ .Values.env.poll_interval }}"
         {{- end }}
-        {{ - if (lt .Values.env.request_timeout .Values.env.poll_interval) }}
-        {{- if .Values.env.request_timeout }}
+        {{- if and .Values.env.request_timeout (lt .Values.env.request_timeout .Values.env.poll_interval) }}
         - name: REQUEST_TIMEOUT
-          value: {{ .Values.env.request_timeout | quote }}
-        {{- end }}        
+          value: "{{ .Values.env.request_timeout }}"
+        {{- end }}
   - labelSelectors:
       - dominodatalab.com/workload-type in (Workspace,App,Batch,Scheduled)
       - app.kubernetes.io/managed-by == distributed-compute-operator
@@ -58,7 +57,7 @@ rules:
         - mountPath: /etc/.aws
           name: domino-shared-store-domino-compute-vol
           subPath: domino/jit/{{ printf "{{ object['metadata']['labels']['dominodatalab.com/starting-user-id'] }}" }}
-          readOnly: true   
+          readOnly: true
     modifyEnv:
       env:
         - name: AWS_CONFIG_FILE

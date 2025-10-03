@@ -1,4 +1,5 @@
 import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdown,shutil,backoff
+from urllib.parse import urlparse
 from datetime import datetime,timedelta
 
 log_file = os.environ.get("JIT_LOG_FOLDER", "/var/log/jit/") + "app.log"
@@ -99,6 +100,24 @@ def read_credentials_file(cred_file_path) -> list[dict]:
     return config_dict
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
+def get_user_projects(user_jwt:str) -> list[str]:
+    headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + user_jwt,
+    }
+    baseurl = urlparse(service_endpoint)
+    if "dummy" in baseurl.path:
+        request_endpoint = f'{baseurl.scheme}://{baseurl.netloc}/dummy/user-projects'
+    else:
+        request_endpoint = f'{baseurl.scheme}://{baseurl.netloc}/user-projects'
+    logger.info(f'Fetching user projects from {request_endpoint}')
+    resp = requests.get(request_endpoint, headers=headers)
+    logger.info(f'User groups from {request_endpoint}: {resp.json()}')
+    resp.raise_for_status()
+    if resp.status_code == 200:
+        return list(resp.json())
+
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
 def get_domino_user_identity():
     token = None
     token_endpoint = os.environ.get('DOMINO_API_PROXY','http://localhost:8899')
@@ -128,7 +147,7 @@ def check_credential_expiration(credential_list:list[dict]) -> list[dict]:
     return expiring_creds
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
-def refresh_jit_credentials(project=None):
+def refresh_jit_credentials(project=None, jwt=None) -> list[dict]:
     # The structure we're expecting from the JIT Proxy:
     # [ 
     #     {
@@ -144,7 +163,10 @@ def refresh_jit_credentials(project=None):
         url = f'{service_endpoint}/{project}'
     else:
         url = service_endpoint
-    user_jwt = get_domino_user_identity()
+    if not jwt:
+        user_jwt = get_domino_user_identity()
+    else: 
+        user_jwt = jwt
     if user_jwt != None:
         creds = []
         headers = {
@@ -171,9 +193,6 @@ if __name__ == "__main__":
             if len(expiring_creds) > 0:
                 new_creds = []
                 for cred in expiring_creds:
-                    # A note here: in the initial phase, we call the base service endpoint, which returns a list of all credentials
-                    # that the user is authorized for (based on their groups).
-                    # In the refresh phase, we call the service endpoint by project, based on which credentials are expiring.
                     projectname = cred['projects'][0]
                     refreshed_cred = refresh_jit_credentials(projectname)
                     if refreshed_cred != None:
@@ -186,10 +205,17 @@ if __name__ == "__main__":
                 else:
                     logger.info("Attempted to refresh credentials, but response from JIT Proxy was empty. Will retry on next cycle.")
         else:
-            new_creds = refresh_jit_credentials()
-            if new_creds != None and len(new_creds) > 0:
-                write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
-                write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
+            user_jwt = get_domino_user_identity()
+            if user_jwt:
+                new_creds = []
+                user_projects = get_user_projects(user_jwt)
+                for project in user_projects:
+                    cred = refresh_jit_credentials(project=project, jwt=user_jwt)
+                    if len(cred) > 0:
+                        new_creds.append(cred)
+                if len(new_creds) > 0:
+                    write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
+                    write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
         if not shutdown.shutdown_signal:
             logger.debug(f"Sleeping {poll_jit_interval} seconds until next attempt...")
             time.sleep(poll_jit_interval)

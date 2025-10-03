@@ -6,3 +6,5 @@ botocore
 gunicorn
 PyJWT
 logging
+prometheus_flask_exporter
+psycogreen
