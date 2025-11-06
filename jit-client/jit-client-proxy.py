@@ -158,7 +158,7 @@ def refresh_jit_credentials(project=None, jwt=None) -> list[dict]:
     #         'session_id': '<str>'
     #     }
     # ]
-    creds = None
+    creds = []
     if project:
         url = f'{service_endpoint}/{project}'
     else:
@@ -168,7 +168,6 @@ def refresh_jit_credentials(project=None, jwt=None) -> list[dict]:
     else: 
         user_jwt = jwt
     if user_jwt != None:
-        creds = []
         headers = {
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + user_jwt,
@@ -195,7 +194,7 @@ if __name__ == "__main__":
                 for cred in expiring_creds:
                     projectname = cred['projects'][0]
                     refreshed_cred = refresh_jit_credentials(projectname)
-                    if refreshed_cred != None:
+                    if len(refreshed_cred) > 0:
                         new_creds.append(refreshed_cred)
                         existing_creds.remove(cred)
                 mux_creds = [*existing_creds,*new_creds]      

@@ -10,6 +10,10 @@ worker_count = os.getenv('FLASK_WORKERS',1)
 
 bind = f"{bind_addr}:{bind_port}"
 workers = worker_count
+worker_class = 'gevent'
+worker_connections = 1000
+timeout = 120
+keepalive = 5
 # certfile = "/ssl/tls.crt"
 # keyfile = "/ssl/tls.key"
 # reload_extra_files = "/ssl/tls.crt"
