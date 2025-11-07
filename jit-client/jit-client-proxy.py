@@ -175,7 +175,7 @@ def refresh_jit_credentials(project=None) -> list[dict]:
             if resp.status_code == 200:
                 logger.debug(f'API Response: {resp.json()}')
                 creds = resp.json()
-        except (requests.exceptions.RequestException, urllib3.exceptions.ProtocolError) as e:
+        except (requests.exceptions.RequestException) as e:
             logger.error(f"Network error calling JIT Proxy API for project {project}: {e}")
     return creds
 
