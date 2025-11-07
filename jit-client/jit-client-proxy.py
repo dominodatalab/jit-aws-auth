@@ -110,12 +110,16 @@ def get_user_projects(user_jwt:str) -> list[str]:
         request_endpoint = f'{baseurl.scheme}://{baseurl.netloc}/dummy/user-projects'
     else:
         request_endpoint = f'{baseurl.scheme}://{baseurl.netloc}/user-projects'
-    logger.info(f'Fetching user projects from {request_endpoint}')
-    resp = requests.get(request_endpoint, headers=headers)
-    logger.info(f'User groups from {request_endpoint}: {resp.json()}')
-    resp.raise_for_status()
-    if resp.status_code == 200:
-        return list(resp.json())
+    try: 
+        logger.info(f'Fetching user projects from {request_endpoint}')
+        resp = requests.get(request_endpoint, headers=headers)
+        logger.info(f'User groups from {request_endpoint}: {resp.json()}')
+        resp.raise_for_status()
+        if resp.status_code == 200:
+            return list(resp.json())
+    except (requests.exceptions.RequestException, requests.exceptions.ConnectionError) as e:
+            logger.error(f"Network error calling JIT Proxy API for user groups list: {e}")
+            return []
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
 def get_domino_user_identity():
@@ -146,8 +150,8 @@ def check_credential_expiration(credential_list:list[dict]) -> list[dict]:
             expiring_creds.append(cred)
     return expiring_creds
 
-@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
-def refresh_jit_credentials(project=None, jwt=None) -> list[dict]:
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout)
+def refresh_jit_credentials(project=None) -> list[dict]:
     # The structure we're expecting from the JIT Proxy:
     # [ 
     #     {
@@ -158,28 +162,26 @@ def refresh_jit_credentials(project=None, jwt=None) -> list[dict]:
     #         'session_id': '<str>'
     #     }
     # ]
-    creds = None
+    creds = []
     if project:
         url = f'{service_endpoint}/{project}'
-    else:
-        url = service_endpoint
-    if not jwt:
-        user_jwt = get_domino_user_identity()
-    else: 
-        user_jwt = jwt
-    if user_jwt != None:
-        creds = []
+    user_jwt = get_domino_user_identity()
+    if user_jwt:
         headers = {
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + user_jwt,
         }
-        logger.info(f'Refreshing credentials from JIT URL: {url}')
-        resp = requests.get(url, headers=headers, json={})
-        logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
-        resp.raise_for_status()
-        if resp.status_code == 200:
-            logger.debug(f'API Response: {resp.json()}')
-            creds = resp.json()
+        try: 
+            logger.info(f'Refreshing credentials from JIT URL: {url}')
+            resp = requests.get(url, headers=headers, json={})
+            logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
+            resp.raise_for_status()
+            if resp.status_code == 200:
+                logger.debug(f'API Response: {resp.json()}')
+                creds = resp.json()
+        except (requests.exceptions.RequestException, requests.exceptions.ConnectionError) as e:
+            logger.error(f"Network error calling JIT Proxy API for project {project}: {e}")
+            return []
     return creds
 
 if __name__ == "__main__":
@@ -195,10 +197,10 @@ if __name__ == "__main__":
                 for cred in expiring_creds:
                     projectname = cred['projects'][0]
                     refreshed_cred = refresh_jit_credentials(projectname)
-                    if refreshed_cred != None:
+                    if refreshed_cred:
                         new_creds.append(refreshed_cred)
                         existing_creds.remove(cred)
-                mux_creds = [*existing_creds,*new_creds]      
+                mux_creds = [*existing_creds,*new_creds]
                 if len(new_creds) > 0:
                     logger.debug(f"Refreshed credentials for projects: {mux_creds}")
                     write_credentials_file(aws_credentials=mux_creds,cred_file_path=aws_credentials_file)
@@ -210,10 +212,13 @@ if __name__ == "__main__":
                 new_creds = []
                 user_projects = get_user_projects(user_jwt)
                 for project in user_projects:
-                    cred = refresh_jit_credentials(project=project, jwt=user_jwt)
+                    # When we send the per-project refresh call to the JIT Proxy, we only send the project name portion:
+                    # The proxy server matches the short project name to the full group name internally.
+                    project_name = project.split("-")[-1].lower()
+                    cred = refresh_jit_credentials(project=project_name)
                     if len(cred) > 0:
                         new_creds.append(cred)
-                if len(new_creds) > 0:
+                if new_creds:
                     write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
                     write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
         if not shutdown.shutdown_signal:

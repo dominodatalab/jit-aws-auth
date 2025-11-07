@@ -1,7 +1,12 @@
 #!/usr/bin/env python
+# Gevent monkey patching must be done before any other imports
+from gevent import monkey
+monkey.patch_all()
+
 import logging,sys,os,jwt,requests,json,flask,datetime
 from flask import Flask,request,abort
 from datetime import datetime
+from json.decoder import JSONDecodeError
 
 loglevel = os.environ.get("LOG_LEVEL","INFO").upper()
 dummy_mode = bool(os.environ.get("TESTING_MODE","false").lower())
@@ -68,11 +73,18 @@ def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
     
     logger.info(f"Body data to send to JIT API: {user_project_data}")
     for project in user_project_data:
-        session = client.put_sessions(project)
-        logger.debug(f"JIT API Response for {project}: {session.json()}")
-        if session.status_code == 200:
-            user_session_list.append(session.json())
-    
+        try:
+            session = client.put_sessions(project)
+            logger.debug(f"JIT API Response for {project}: {session.json()}")
+            if session.status_code == 200:
+                user_session_list.append(session.json())
+            else:
+                logger.warning(f"Upstream API returned {session.status_code} for project {project['projectName']}: {session.text}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error calling upstream API for project {project['projectName']}: {e}")
+        except (KeyError, JSONDecodeError) as e:
+            logger.error(f"Invalid response from upstream API for project {project['projectName']}: {e}")
+
     return user_session_list
 
 @app.route('/jit-sessions', methods=['GET'])
@@ -98,6 +110,8 @@ def jit_aws_credential_by_project(project):
     new_credential = jit_aws_credentials(project=project,user_jwt=user_jwt)
     # Note: while the /jit-sessions URL returns a list of all of the credentials for a given user, this
     # endpoint will return only a single credential dict based on the project value.
+    if len(new_credential) == 0:
+        abort(503, description=f"Failed to retrieve credentials for project {project} from upstream API")
     return new_credential[0]
 
 @app.route('/user-projects', methods=['GET'])
@@ -116,7 +130,7 @@ def jit_groups():
 
 @app.route('/dummy/user-projects', methods=['GET'])
 def jit_groups_dummy():
-    dummy_groups = ['domino1','domino2']
+    dummy_groups = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
     if dummy_mode:
         return dummy_groups
     else:
@@ -150,6 +164,8 @@ def jit_aws_credential_by_project_dummy(project):
         new_credential = jit_aws_credentials_dummy(project=project,user_jwt=user_jwt)
         # Note: while the /jit-sessions URL returns a list of all of the credentials for a given user, this
         # endpoint will return only a single credential dict based on the project value.
+        if len(new_credential) == 0:
+            abort(503, description=f"Failed to retrieve credentials for project {project} from upstream API")
         return new_credential[0]
     else:
         abort(404,description="Endpoint not available outside of TESTING_MODE")
