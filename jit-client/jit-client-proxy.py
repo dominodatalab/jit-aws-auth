@@ -110,12 +110,16 @@ def get_user_projects(user_jwt:str) -> list[str]:
         request_endpoint = f'{baseurl.scheme}://{baseurl.netloc}/dummy/user-projects'
     else:
         request_endpoint = f'{baseurl.scheme}://{baseurl.netloc}/user-projects'
-    logger.info(f'Fetching user projects from {request_endpoint}')
-    resp = requests.get(request_endpoint, headers=headers)
-    logger.info(f'User groups from {request_endpoint}: {resp.json()}')
-    resp.raise_for_status()
-    if resp.status_code == 200:
-        return list(resp.json())
+    try: 
+        logger.info(f'Fetching user projects from {request_endpoint}')
+        resp = requests.get(request_endpoint, headers=headers)
+        logger.info(f'User groups from {request_endpoint}: {resp.json()}')
+        resp.raise_for_status()
+        if resp.status_code == 200:
+            return list(resp.json())
+    except (requests.exceptions.RequestException, requests.exceptions.ConnectionError) as e:
+            logger.error(f"Network error calling JIT Proxy API for user groups list: {e}")
+            return []
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
 def get_domino_user_identity():
@@ -175,8 +179,9 @@ def refresh_jit_credentials(project=None) -> list[dict]:
             if resp.status_code == 200:
                 logger.debug(f'API Response: {resp.json()}')
                 creds = resp.json()
-        except (requests.exceptions.RequestException) as e:
+        except (requests.exceptions.RequestException, requests.exceptions.ConnectionError) as e:
             logger.error(f"Network error calling JIT Proxy API for project {project}: {e}")
+            return []
     return creds
 
 if __name__ == "__main__":
