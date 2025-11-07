@@ -146,7 +146,7 @@ def check_credential_expiration(credential_list:list[dict]) -> list[dict]:
             expiring_creds.append(cred)
     return expiring_creds
 
-@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
+# @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
 def refresh_jit_credentials(project=None) -> list[dict]:
     # The structure we're expecting from the JIT Proxy:
     # [ 
