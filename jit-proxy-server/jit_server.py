@@ -130,7 +130,7 @@ def jit_groups():
 
 @app.route('/dummy/user-projects', methods=['GET'])
 def jit_groups_dummy():
-    dummy_groups = ['domino1','domino2']
+    dummy_groups = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
     if dummy_mode:
         return dummy_groups
     else:
