@@ -147,7 +147,7 @@ def check_credential_expiration(credential_list:list[dict]) -> list[dict]:
     return expiring_creds
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
-def refresh_jit_credentials(project=None, jwt=None) -> list[dict]:
+def refresh_jit_credentials(project=None) -> list[dict]:
     # The structure we're expecting from the JIT Proxy:
     # [ 
     #     {
@@ -161,13 +161,8 @@ def refresh_jit_credentials(project=None, jwt=None) -> list[dict]:
     creds = []
     if project:
         url = f'{service_endpoint}/{project}'
-    else:
-        url = service_endpoint
-    if not jwt:
-        user_jwt = get_domino_user_identity()
-    else: 
-        user_jwt = jwt
-    if user_jwt != None:
+    user_jwt = get_domino_user_identity()
+    if user_jwt:
         headers = {
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + user_jwt,
@@ -197,7 +192,7 @@ if __name__ == "__main__":
                     if len(refreshed_cred) > 0:
                         new_creds.append(refreshed_cred)
                         existing_creds.remove(cred)
-                mux_creds = [*existing_creds,*new_creds]      
+                mux_creds = [*existing_creds,*new_creds]
                 if len(new_creds) > 0:
                     logger.debug(f"Refreshed credentials for projects: {mux_creds}")
                     write_credentials_file(aws_credentials=mux_creds,cred_file_path=aws_credentials_file)
@@ -209,7 +204,7 @@ if __name__ == "__main__":
                 new_creds = []
                 user_projects = get_user_projects(user_jwt)
                 for project in user_projects:
-                    cred = refresh_jit_credentials(project=project, jwt=user_jwt)
+                    cred = refresh_jit_credentials(project=project)
                     if len(cred) > 0:
                         new_creds.append(cred)
                 if len(new_creds) > 0:
