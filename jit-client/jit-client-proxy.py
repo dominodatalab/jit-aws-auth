@@ -146,7 +146,7 @@ def check_credential_expiration(credential_list:list[dict]) -> list[dict]:
             expiring_creds.append(cred)
     return expiring_creds
 
-# @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout)
 def refresh_jit_credentials(project=None) -> list[dict]:
     # The structure we're expecting from the JIT Proxy:
     # [ 
@@ -167,13 +167,16 @@ def refresh_jit_credentials(project=None) -> list[dict]:
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + user_jwt,
         }
-        logger.info(f'Refreshing credentials from JIT URL: {url}')
-        resp = requests.get(url, headers=headers, json={})
-        logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
-        resp.raise_for_status()
-        if resp.status_code == 200:
-            logger.debug(f'API Response: {resp.json()}')
-            creds = resp.json()
+        try: 
+            logger.info(f'Refreshing credentials from JIT URL: {url}')
+            resp = requests.get(url, headers=headers, json={})
+            logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
+            resp.raise_for_status()
+            if resp.status_code == 200:
+                logger.debug(f'API Response: {resp.json()}')
+                creds = resp.json()
+        except (requests.exceptions.RequestException, urllib3.exceptions.ProtocolError) as e:
+            logger.error(f"Network error calling JIT Proxy API for project {project}: {e}")
     return creds
 
 if __name__ == "__main__":
@@ -189,7 +192,7 @@ if __name__ == "__main__":
                 for cred in expiring_creds:
                     projectname = cred['projects'][0]
                     refreshed_cred = refresh_jit_credentials(projectname)
-                    if len(refreshed_cred) > 0:
+                    if refreshed_cred:
                         new_creds.append(refreshed_cred)
                         existing_creds.remove(cred)
                 mux_creds = [*existing_creds,*new_creds]
@@ -207,7 +210,7 @@ if __name__ == "__main__":
                     cred = refresh_jit_credentials(project=project)
                     if len(cred) > 0:
                         new_creds.append(cred)
-                if len(new_creds) > 0:
+                if new_creds:
                     write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
                     write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
         if not shutdown.shutdown_signal:
