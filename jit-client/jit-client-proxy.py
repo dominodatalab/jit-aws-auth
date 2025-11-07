@@ -207,7 +207,10 @@ if __name__ == "__main__":
                 new_creds = []
                 user_projects = get_user_projects(user_jwt)
                 for project in user_projects:
-                    cred = refresh_jit_credentials(project=project)
+                    # When we send the per-project refresh call to the JIT Proxy, we only send the project name portion:
+                    # The proxy server matches the short project name to the full group name internally.
+                    project_name = project.split("-")[-1].lower()
+                    cred = refresh_jit_credentials(project=project_name)
                     if len(cred) > 0:
                         new_creds.append(cred)
                 if new_creds:
