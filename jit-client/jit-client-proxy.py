@@ -99,7 +99,7 @@ def read_credentials_file(cred_file_path) -> list[dict]:
         config_dict = convert_aws_creds_to_jit_api(json.load(f))
     return config_dict
 
-@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout,raise_on_giveup=False)
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout)
 def get_user_projects(user_jwt:str) -> list[str]:
     headers = {
             "Content-Type": "application/json",
