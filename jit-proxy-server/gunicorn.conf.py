@@ -1,30 +1,22 @@
 import os
-from psycogreen.gevent import patch_psycopg
 from prometheus_flask_exporter.multiprocess import GunicornPrometheusMetrics
 from os import getenv, makedirs
 from os.path import exists
 
 bind_addr = os.getenv('FLASK_HOST','0.0.0.0')
 bind_port = os.getenv('FLASK_PORT','5000')
-worker_count = os.getenv('FLASK_WORKERS',1)
+worker_count = int(os.getenv('FLASK_WORKERS', 4))
+thread_count = int(os.getenv('FLASK_THREADS', 8))
 
 bind = f"{bind_addr}:{bind_port}"
 workers = worker_count
-worker_class = 'gevent'
-worker_connections = 1000
+worker_class = 'gthread'
+threads = thread_count
 timeout = 120
 keepalive = 5
 # certfile = "/ssl/tls.crt"
 # keyfile = "/ssl/tls.key"
 # reload_extra_files = "/ssl/tls.crt"
-
-# patch forked gevent processes for psycopg2
-def post_fork(server, worker):
-    # gevent.monkey.patch_all() is already called in GEventWorker for us
-    worker.log.info("patching psycopg2 with psycogreen")
-    patch_psycopg()
-
-    worker.log.info("patching complete")
 
 
 # Prometheus metrics config

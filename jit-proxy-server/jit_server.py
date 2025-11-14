@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-# Gevent monkey patching must be done before any other imports
-from gevent import monkey
-monkey.patch_all()
-
 import logging,sys,os,jwt,requests,json,flask,datetime
 from flask import Flask,request,abort
 from datetime import datetime

@@ -7,6 +7,4 @@ gunicorn
 PyJWT
 logging
 prometheus_flask_exporter
-psycogreen
 backoff
-gevent>=23.9.1
