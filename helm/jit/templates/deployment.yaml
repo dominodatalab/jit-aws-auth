@@ -6,7 +6,7 @@ metadata:
   labels:
     app: {{ .Values.env.name }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.env.proxy_server_replicas | default 3 }}
   selector:
     matchLabels:
       app: {{ .Values.env.name }}
