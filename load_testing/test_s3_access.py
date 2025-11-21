@@ -195,17 +195,17 @@ def list_s3_bucket(profile_name: str, bucket_name: str, max_keys: int = 10, test
         # Create S3 client from the session
         s3_client = session.client('s3')
 
-        # Get caller identity to verify credentials
-        print(f"Session created successfully")
-        print(f"\nVerifying AWS credentials...")
+        # # Get caller identity to verify credentials
+        # print(f"Session created successfully")
+        # print(f"\nVerifying AWS credentials...")
 
-        sts_client = session.client('sts')
-        identity = sts_client.get_caller_identity()
+        # sts_client = session.client('sts')
+        # identity = sts_client.get_caller_identity()
 
-        print(f"Credentials verified:")
-        print(f"  Account: {identity['Account']}")
-        print(f"  User ARN: {identity['Arn']}")
-        print(f"  User ID: {identity['UserId']}")
+        # print(f"Credentials verified:")
+        # print(f"  Account: {identity['Account']}")
+        # print(f"  User ARN: {identity['Arn']}")
+        # print(f"  User ID: {identity['UserId']}")
 
         # List bucket contents
         print(f"\nListing contents of bucket '{bucket_name}'...")
