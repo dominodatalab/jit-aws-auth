@@ -96,7 +96,11 @@ def write_credentials_file(aws_credentials:list[dict],cred_file_path):
 
 def read_credentials_file(cred_file_path) -> list[dict]:
     with open(cred_file_path, "r") as f:
-        config_dict = convert_aws_creds_to_jit_api(json.load(f))
+        try: 
+            config_dict = convert_aws_creds_to_jit_api(json.load(f))
+        except json.JSONDecodeError as e:
+            logger.error(f"Error reading credentials file: {e}")
+            return []
     return config_dict
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout)
