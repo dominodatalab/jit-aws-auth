@@ -9,7 +9,7 @@ aws_credentials_file = f"{jit_directory_root}/credentials"
 client_bin_dir = f"{jit_directory_root}/bin"
 service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT","http://jit-svc.domino-field")
 token_min_expiry_in_seconds = int(os.environ.get("TOKEN_MIN",300))
-poll_jit_interval = int(os.environ.get("POLL_INTERVAL",60))
+poll_jit_interval = int(os.environ.get("POLL_INTERVAL",30))
 request_timeout = int(os.environ.get("REQUEST_TIMEOUT",30))
 
 session_list = []
