@@ -3,6 +3,7 @@ import logging,sys,os,jwt,requests,json,flask,datetime
 from flask import Flask,request,abort
 from datetime import datetime
 from json.decoder import JSONDecodeError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 loglevel = os.environ.get("LOG_LEVEL","INFO").upper()
 dummy_mode = bool(os.environ.get("TESTING_MODE","false").lower())
@@ -19,6 +20,9 @@ from client import JitAccessEngineClient,constants
 # Create a Flask application
 app = Flask(__name__)
 
+# Maximum number of parallel requests to the upstream JIT API
+MAX_PARALLEL_REQUESTS = int(os.environ.get("JIT_MAX_PARALLEL_REQUESTS", 30))
+
 def create_app():
     global app,client
     client = JitAccessEngineClient()
@@ -33,7 +37,7 @@ def verify_user(user_jwt):
     headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer " + user_jwt,
-    }    
+    }
     domino_host = os.environ.get(
         "DOMINO_USER_HOST", "http://nucleus-frontend.domino-platform:80"
     )
@@ -49,12 +53,36 @@ def verify_user(user_jwt):
         logger.info(f"Nucleus returned non-200 response: url {domino_host}, response_code {resp.status_code}, headers {headers}, response {resp.json()}")
         return False
 
+def fetch_session(project: dict) -> dict:
+    """
+    Fetch a single JIT session from the upstream API.
+
+    Args:
+        project: Dict containing project session request payload
+
+    Returns:
+        Dict containing session credentials if successful, None otherwise
+    """
+    try:
+        session = client.put_sessions(project)
+        logger.debug(f"JIT API Response for {project}: {session.json()}")
+        if session.status_code == 200:
+            return session.json()
+        else:
+            logger.warning(f"Upstream API returned {session.status_code} for project {project['projectName']}: {session.text}")
+            return None
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error calling upstream API for project {project['projectName']}: {e}")
+        return None
+    except (KeyError, JSONDecodeError) as e:
+        logger.error(f"Invalid response from upstream API for project {project['projectName']}: {e}")
+        return None
+
 def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
     key_list = ['eventType','applicationShortName','lifecycle','projectName','userId','userEmail']
     ug_list = [ ug for ug in user_group_list if 'POLICY-MANAGER' not in ug ] # Any group name with "POLICY-MANAGER" in it can be filtered per PT.
     logger.debug(f"User group list: {ug_list}")
     user_project_data = []
-    user_session_list = []
     for group_name in ug_list:
         prj_split = group_name.split("-")
         session = { key:None for key in key_list }
@@ -66,20 +94,19 @@ def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
         session['userId'] = user_id
         session['userEmail'] = user_mail
         user_project_data.append(session)
-    
+
     logger.info(f"Body data to send to JIT API: {user_project_data}")
-    for project in user_project_data:
-        try:
-            session = client.put_sessions(project)
-            logger.debug(f"JIT API Response for {project}: {session.json()}")
-            if session.status_code == 200:
-                user_session_list.append(session.json())
-            else:
-                logger.warning(f"Upstream API returned {session.status_code} for project {project['projectName']}: {session.text}")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Network error calling upstream API for project {project['projectName']}: {e}")
-        except (KeyError, JSONDecodeError) as e:
-            logger.error(f"Invalid response from upstream API for project {project['projectName']}: {e}")
+
+    # Execute all upstream calls in parallel
+    user_session_list = []
+    num_workers = min(len(user_project_data), MAX_PARALLEL_REQUESTS)
+    if num_workers > 0:
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = {executor.submit(fetch_session, project): project for project in user_project_data}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    user_session_list.append(result)
 
     return user_session_list
 

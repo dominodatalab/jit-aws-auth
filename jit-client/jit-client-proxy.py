@@ -8,9 +8,9 @@ jit_directory_root = "/etc/.aws"
 aws_credentials_file = f"{jit_directory_root}/credentials"
 client_bin_dir = f"{jit_directory_root}/bin"
 service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT","http://jit-svc.domino-field")
-token_min_expiry_in_seconds = os.environ.get("TOKEN_MIN",300)
-poll_jit_interval = os.environ.get("POLL_INTERVAL",60)
-request_timeout = os.environ.get("REQUEST_TIMEOUT",30)
+token_min_expiry_in_seconds = int(os.environ.get("TOKEN_MIN",300))
+poll_jit_interval = int(os.environ.get("POLL_INTERVAL",60))
+request_timeout = int(os.environ.get("REQUEST_TIMEOUT",30))
 
 session_list = []
 
@@ -92,16 +92,24 @@ def write_credentials_file(aws_credentials:list[dict],cred_file_path):
     cred_dict = convert_jit_api_to_aws_creds(aws_credentials)
     with open(cred_file_path, "w") as f:
         json.dump(cred_dict,f,indent=4)
-        
+
+def delete_invalid_credentials_file(cred_file_path):
+    if os.path.isfile(cred_file_path):
+        os.remove(cred_file_path)
+        logger.info(f"Removed invalid credentials file: {cred_file_path}")
 
 def read_credentials_file(cred_file_path) -> list[dict]:
+    cred_file_is_valid = True
     with open(cred_file_path, "r") as f:
         try: 
             cred_load = json.load(f)
             config_dict = convert_aws_creds_to_jit_api(cred_load)
         except json.JSONDecodeError as e:
             logger.error(f"Error reading credentials file: {e}")
-            return []
+            cred_file_is_valid = False
+            config_dict = []
+    if not cred_file_is_valid:
+        delete_invalid_credentials_file(cred_file_path)
     return config_dict
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout)
