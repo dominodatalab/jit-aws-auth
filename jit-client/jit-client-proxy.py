@@ -197,6 +197,39 @@ def refresh_jit_credentials(project=None) -> list[dict]:
             return []
     return creds
 
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout)
+def refresh_jit_credentials_parallel(project_list:list[str]) -> list[dict]:
+    # The structure we're expecting from the JIT Proxy:
+    # [ 
+    #     {
+    #         'expiration': <date str '%Y-%m-%d %H:%M:%S%z'>, 
+    #         'projects': <list[str]>,
+    #         'secretAccessKey':'<str>', 
+    #         'sessionToken': '<str>', 
+    #         'session_id': '<str>'
+    #     }
+    # ]
+    creds = []
+    user_jwt = get_domino_user_identity()
+    url = service_endpoint
+    if user_jwt:
+        headers = {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + user_jwt,
+        }
+        try: 
+            logger.info(f'Refreshing credentials from JIT URL: {url}')
+            resp = requests.get(url, headers=headers, json={'projects':project_list})
+            logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
+            resp.raise_for_status()
+            if resp.status_code == 200:
+                logger.debug(f'API Response: {resp.json()}')
+                creds = resp.json()
+        except (requests.exceptions.RequestException, requests.exceptions.ConnectionError) as e:
+            logger.error(f"Network error calling JIT Proxy API for project list {project_list}: {e}")
+            return []
+    return creds
+
 if __name__ == "__main__":
     shutdown = shutdown.GracefulShutdown(logger)
     logger.info("Starting JIT Client Proxy...")
@@ -206,13 +239,14 @@ if __name__ == "__main__":
             existing_creds = read_credentials_file(aws_credentials_file)
             expiring_creds = check_credential_expiration(existing_creds)
             if len(expiring_creds) > 0:
-                new_creds = []
-                for cred in expiring_creds:
-                    projectname = cred['projects'][0]
-                    refreshed_cred = refresh_jit_credentials(projectname)
-                    if refreshed_cred:
-                        new_creds.append(refreshed_cred)
-                        existing_creds.remove(cred)
+                projects_to_request = [cred['projects'][0] for cred in expiring_creds]
+                new_creds = refresh_jit_credentials_parallel(projects_to_request)
+                # for cred in expiring_creds:
+                #     projectname = cred['projects'][0]
+                #     refreshed_cred = refresh_jit_credentials(projectname)
+                #     if refreshed_cred:
+                #         new_creds.append(refreshed_cred)
+                #         existing_creds.remove(cred)
                 mux_creds = [*existing_creds,*new_creds]
                 if len(new_creds) > 0:
                     logger.debug(f"Refreshed credentials for projects: {mux_creds}")
@@ -222,15 +256,16 @@ if __name__ == "__main__":
         else:
             user_jwt = get_domino_user_identity()
             if user_jwt:
-                new_creds = []
                 user_projects = get_user_projects(user_jwt)
-                for project in user_projects:
-                    # When we send the per-project refresh call to the JIT Proxy, we only send the project name portion:
-                    # The proxy server matches the short project name to the full group name internally.
-                    project_name = project.split("-")[-1].lower()
-                    cred = refresh_jit_credentials(project=project_name)
-                    if len(cred) > 0:
-                        new_creds.append(cred)
+                projects_to_request = [project.split("-")[-1].lower() for project in user_projects]
+                new_creds = refresh_jit_credentials_parallel(projects_to_request)
+                # for project in user_projects:
+                #     # When we send the per-project refresh call to the JIT Proxy, we only send the project name portion:
+                #     # The proxy server matches the short project name to the full group name internally.
+                #     project_name = project.split("-")[-1].lower()
+                #     cred = refresh_jit_credentials(project=project_name)
+                #     if len(cred) > 0:
+                #         new_creds.append(cred)
                 if new_creds:
                     write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
                     write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)

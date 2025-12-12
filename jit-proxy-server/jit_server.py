@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 loglevel = os.environ.get("LOG_LEVEL","INFO").upper()
 dummy_mode = bool(os.environ.get("TESTING_MODE","false").lower())
+dummy_groups = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2','sg-jit-prod-abcd-efg-prj-other','sg-jit-prod-abcd-efg-prj-domino3'] if dummy_mode else None
 # We want to use the same logger object as the JIT client,
 # so we need to set it up before importing the client module.
 logger = logging.getLogger('jit_proxy_server')
@@ -137,6 +138,27 @@ def jit_aws_credential_by_project(project):
         abort(503, description=f"Failed to retrieve credentials for project {project} from upstream API")
     return new_credential[0]
 
+@app.route('/jit-sessions-parallel', methods=['GET'])
+def jit_aws_credentials(user_jwt=None):
+    check_update_jit_client()
+    user_token = user_jwt or request.headers['Authorization'].split()[1]
+    if verify_user(user_token) and request.is_json and isinstance(request.json.get('projects'), list):
+        user = jwt.decode(user_token,options={"verify_signature": False})
+        project_list = []
+        for proj in request.json['projects']:
+            for grp_name in user[constants.fm_projects_attribute]:
+                if proj.upper() == grp_name.split("-")[-1]:
+                    project_list.append(grp_name)
+        # if project:
+        #    # Note: we must send the group names as lower-cased to the JIT API (and we write them as lower-cased on the client side),
+        #    # but they are present as upper-cased in the user JWT.
+        #    user[constants.fm_projects_attribute] = [grp_name for grp_name in user[constants.fm_projects_attribute] if project.upper() == grp_name.split("-")[-1]]
+        logger.info(f'Fetching Credentials for user: {user["preferred_username"]} on projects {project_list}')
+        session_list = create_new_sessions(user_id=user['preferred_username'],user_mail=user['email'],user_group_list=project_list)
+        return session_list
+    else:
+        abort(401,description="Invalid User JWT")
+
 @app.route('/user-projects', methods=['GET'])
 def jit_groups():
     check_update_jit_client()
@@ -153,7 +175,7 @@ def jit_groups():
 
 @app.route('/dummy/user-projects', methods=['GET'])
 def jit_groups_dummy():
-    dummy_groups = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
+    global dummy_groups
     if dummy_mode:
         return dummy_groups
     else:
@@ -164,7 +186,7 @@ def jit_groups_dummy():
 def jit_aws_credentials_dummy(project=None,user_jwt=None):
     check_update_jit_client()
     user_token = user_jwt or request.headers['Authorization'].split()[1]
-    user_groups = ['sg-jit-prod-abcd-efg-prj-domino1','sg-jit-prod-abcd-efg-prj-domino2']
+    user_groups = dummy_groups
     if not dummy_mode:
         abort(404,description="Endpoint not available outside of TESTING_MODE")
     if verify_user(user_token):

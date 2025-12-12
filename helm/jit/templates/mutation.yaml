@@ -34,7 +34,7 @@ rules:
         - name: AWS_CONFIG_FILE
           value: /etc/.aws/profile
         - name: DOMINO_JIT_ENDPOINT
-          value: {{ if .Values.testing }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/dummy/jit-sessions"{{ else }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions"{{ end }}
+          value: {{ if .Values.testing }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/dummy/jit-sessions"{{ else }}"http://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/jit-sessions-parallel"{{ end }}
         - name: DOMINO_API_PROXY
           value: http://localhost:8899
         - name: LOG_LEVEL
