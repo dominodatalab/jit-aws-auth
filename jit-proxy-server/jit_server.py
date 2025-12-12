@@ -139,7 +139,7 @@ def jit_aws_credential_by_project(project):
     return new_credential[0]
 
 @app.route('/jit-sessions-parallel', methods=['GET'])
-def jit_aws_credentials(user_jwt=None):
+def jit_aws_credentials_parallel(user_jwt=None):
     check_update_jit_client()
     user_token = user_jwt or request.headers['Authorization'].split()[1]
     if verify_user(user_token) and request.is_json and isinstance(request.json.get('projects'), list):
