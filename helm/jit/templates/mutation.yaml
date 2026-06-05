@@ -47,3 +47,5 @@ rules:
         - name: REQUEST_TIMEOUT
           value: "{{ .Values.env.request_timeout }}"
         {{- end }}
+        - name: FM_PROJECTS_ATTRIBUTE_NAME
+          value: {{ if .Values.testing }}"user_groups"{{ else }}{{ .Values.env.jit.projects_attribute_name | default "fm_projects" | quote }}{{ end }}
