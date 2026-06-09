@@ -369,3 +369,111 @@ class TestFlaskRoutes:
         response = flask_client.get('/test')
 
         assert response.status_code == 200
+
+    # --- Mixed-case group name tests ---
+
+    @pytest.mark.parametrize("jwt_group,project_param", [
+        # JWT group has uppercase last segment (original assumed case)
+        ("sg-jit-prod-app-lifecycle-prj-MYPROJECT", "myproject"),
+        # JWT group has mixed-case last segment
+        ("sg-jit-prod-app-lifecycle-prj-MyProject", "myproject"),
+        # JWT group has all-lowercase last segment
+        ("sg-jit-prod-app-lifecycle-prj-myproject", "myproject"),
+        # Project param already uppercase, JWT group lowercase
+        ("sg-jit-prod-app-lifecycle-prj-myproject", "MYPROJECT"),
+    ])
+    def test_jit_sessions_by_project_matches_regardless_of_case(
+        self, mock_jit_server_module, flask_client, jwt_group, project_param
+    ):
+        """Test /jit-sessions/<project> matches groups regardless of case in JWT or request."""
+        jit_server = mock_jit_server_module['module']
+        mock_client = MagicMock()
+
+        with patch.object(jit_server, 'client', mock_client):
+            with patch.object(jit_server, 'verify_user', return_value=True):
+                with patch.object(jit_server, 'jwt') as mock_jwt:
+                    mock_jwt.decode.return_value = {
+                        "preferred_username": "testuser",
+                        "email": "test@example.com",
+                        "fm_projects": [jwt_group],
+                    }
+                    with patch.object(
+                        jit_server, 'create_new_sessions', return_value=[{"sessionId": "s1"}]
+                    ) as mock_create:
+                        response = flask_client.get(
+                            f'/jit-sessions/{project_param}',
+                            headers={'Authorization': 'Bearer test_token'},
+                        )
+
+                        assert response.status_code == 200
+                        # The group must not have been filtered out
+                        mock_create.assert_called_once()
+                        passed_groups = mock_create.call_args.kwargs['user_group_list']
+                        assert jwt_group in passed_groups
+
+    def test_jit_sessions_by_project_excludes_unrelated_groups(
+        self, mock_jit_server_module, flask_client
+    ):
+        """Test /jit-sessions/<project> filters out groups that don't match the requested project."""
+        jit_server = mock_jit_server_module['module']
+        mock_client = MagicMock()
+
+        with patch.object(jit_server, 'client', mock_client):
+            with patch.object(jit_server, 'verify_user', return_value=True):
+                with patch.object(jit_server, 'jwt') as mock_jwt:
+                    mock_jwt.decode.return_value = {
+                        "preferred_username": "testuser",
+                        "email": "test@example.com",
+                        "fm_projects": [
+                            "sg-jit-prod-app-lifecycle-prj-ALPHA",
+                            "sg-jit-prod-app-lifecycle-prj-BETA",
+                        ],
+                    }
+                    with patch.object(
+                        jit_server, 'create_new_sessions', return_value=[{"sessionId": "s1"}]
+                    ) as mock_create:
+                        flask_client.get(
+                            '/jit-sessions/alpha',
+                            headers={'Authorization': 'Bearer test_token'},
+                        )
+
+                        passed_groups = mock_create.call_args.kwargs['user_group_list']
+                        assert "sg-jit-prod-app-lifecycle-prj-ALPHA" in passed_groups
+                        assert "sg-jit-prod-app-lifecycle-prj-BETA" not in passed_groups
+
+    @pytest.mark.parametrize("jwt_group,project_param", [
+        ("sg-jit-prod-app-lifecycle-prj-MYPROJECT", "myproject"),
+        ("sg-jit-prod-app-lifecycle-prj-MyProject", "myproject"),
+        ("sg-jit-prod-app-lifecycle-prj-myproject", "myproject"),
+    ])
+    def test_jit_sessions_parallel_matches_regardless_of_case(
+        self, mock_jit_server_module, flask_client, jwt_group, project_param
+    ):
+        """Test /jit-sessions-parallel matches groups regardless of case in JWT or request."""
+        jit_server = mock_jit_server_module['module']
+        mock_client = MagicMock()
+
+        with patch.object(jit_server, 'client', mock_client):
+            with patch.object(jit_server, 'verify_user', return_value=True):
+                with patch.object(jit_server, 'jwt') as mock_jwt:
+                    mock_jwt.decode.return_value = {
+                        "preferred_username": "testuser",
+                        "email": "test@example.com",
+                        "fm_projects": [jwt_group],
+                    }
+                    with patch.object(
+                        jit_server, 'create_new_sessions', return_value=[{"sessionId": "s1"}]
+                    ) as mock_create:
+                        response = flask_client.get(
+                            '/jit-sessions-parallel',
+                            headers={
+                                'Authorization': 'Bearer test_token',
+                                'Content-Type': 'application/json',
+                            },
+                            json={'projects': [project_param]},
+                        )
+
+                        assert response.status_code == 200
+                        mock_create.assert_called_once()
+                        passed_groups = mock_create.call_args.kwargs['user_group_list']
+                        assert jwt_group in passed_groups
