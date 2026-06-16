@@ -1,4 +1,4 @@
-import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdown,shutil,backoff
+import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdown,shutil,backoff,jwt
 from urllib.parse import urlparse
 from datetime import datetime,timedelta
 
@@ -8,9 +8,11 @@ jit_directory_root = "/etc/.aws"
 aws_credentials_file = f"{jit_directory_root}/credentials"
 client_bin_dir = f"{jit_directory_root}/bin"
 service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT","http://jit-svc.domino-field")
-token_min_expiry_in_seconds = os.environ.get("TOKEN_MIN",300)
-poll_jit_interval = os.environ.get("POLL_INTERVAL",60)
-request_timeout = os.environ.get("REQUEST_TIMEOUT",30)
+token_min_expiry_in_seconds = int(os.environ.get("TOKEN_MIN",300))
+poll_jit_interval = int(os.environ.get("POLL_INTERVAL",30))
+init_retry_interval = int(os.environ.get("INIT_RETRY_INTERVAL",3))
+request_timeout = int(os.environ.get("REQUEST_TIMEOUT",30))
+fm_projects_claim = os.environ.get("FM_PROJECTS_ATTRIBUTE","fm_projects")
 
 session_list = []
 
@@ -92,11 +94,24 @@ def write_credentials_file(aws_credentials:list[dict],cred_file_path):
     cred_dict = convert_jit_api_to_aws_creds(aws_credentials)
     with open(cred_file_path, "w") as f:
         json.dump(cred_dict,f,indent=4)
-        
+
+def delete_invalid_credentials_file(cred_file_path):
+    if os.path.isfile(cred_file_path):
+        os.remove(cred_file_path)
+        logger.info(f"Removed invalid credentials file: {cred_file_path}")
 
 def read_credentials_file(cred_file_path) -> list[dict]:
+    cred_file_is_valid = True
     with open(cred_file_path, "r") as f:
-        config_dict = convert_aws_creds_to_jit_api(json.load(f))
+        try: 
+            cred_load = json.load(f)
+            config_dict = convert_aws_creds_to_jit_api(cred_load)
+        except json.JSONDecodeError as e:
+            logger.error(f"Error reading credentials file: {e}")
+            cred_file_is_valid = False
+            config_dict = []
+    if not cred_file_is_valid:
+        delete_invalid_credentials_file(cred_file_path)
     return config_dict
 
 @backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout)
@@ -184,22 +199,53 @@ def refresh_jit_credentials(project=None) -> list[dict]:
             return []
     return creds
 
+@backoff.on_exception(backoff.expo,requests.exceptions.RequestException,max_time=request_timeout)
+def refresh_jit_credentials_parallel(project_list:list[str], user_jwt:str=None) -> list[dict]:
+    # The structure we're expecting from the JIT Proxy:
+    # [
+    #     {
+    #         'expiration': <date str '%Y-%m-%d %H:%M:%S%z'>,
+    #         'projects': <list[str]>,
+    #         'secretAccessKey':'<str>',
+    #         'sessionToken': '<str>',
+    #         'session_id': '<str>'
+    #     }
+    # ]
+    creds = []
+    if user_jwt is None:
+        user_jwt = get_domino_user_identity()
+    url = service_endpoint
+    if user_jwt:
+        headers = {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + user_jwt,
+        }
+        try: 
+            logger.info(f'Refreshing credentials from JIT URL: {url}')
+            resp = requests.get(url, headers=headers, json={'projects':project_list})
+            logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
+            resp.raise_for_status()
+            if resp.status_code == 200:
+                logger.debug(f'API Response: {resp.json()}')
+                creds = resp.json()
+        except (requests.exceptions.RequestException, requests.exceptions.ConnectionError) as e:
+            logger.error(f"Network error calling JIT Proxy API for project list {project_list}: {e}")
+            return []
+    return creds
+
 if __name__ == "__main__":
     shutdown = shutdown.GracefulShutdown(logger)
     logger.info("Starting JIT Client Proxy...")
     check_update_clientbin()
+    init_complete = False
     while not shutdown.shutdown_signal:
         if os.path.isfile(aws_credentials_file) and os.path.getsize(aws_credentials_file) > 0:
+            init_complete = True
             existing_creds = read_credentials_file(aws_credentials_file)
             expiring_creds = check_credential_expiration(existing_creds)
             if len(expiring_creds) > 0:
-                new_creds = []
-                for cred in expiring_creds:
-                    projectname = cred['projects'][0]
-                    refreshed_cred = refresh_jit_credentials(projectname)
-                    if refreshed_cred:
-                        new_creds.append(refreshed_cred)
-                        existing_creds.remove(cred)
+                projects_to_request = [cred['projects'][0] for cred in expiring_creds]
+                new_creds = refresh_jit_credentials_parallel(projects_to_request)
                 mux_creds = [*existing_creds,*new_creds]
                 if len(new_creds) > 0:
                     logger.debug(f"Refreshed credentials for projects: {mux_creds}")
@@ -209,18 +255,19 @@ if __name__ == "__main__":
         else:
             user_jwt = get_domino_user_identity()
             if user_jwt:
-                new_creds = []
-                user_projects = get_user_projects(user_jwt)
-                for project in user_projects:
-                    # When we send the per-project refresh call to the JIT Proxy, we only send the project name portion:
-                    # The proxy server matches the short project name to the full group name internally.
-                    project_name = project.split("-")[-1].lower()
-                    cred = refresh_jit_credentials(project=project_name)
-                    if len(cred) > 0:
-                        new_creds.append(cred)
+                # Decode the JWT locally to extract the project group list, avoiding a
+                # sequential round-trip to /user-projects (which only decodes the same claim).
+                user_data = jwt.decode(user_jwt, options={"verify_signature": False})
+                user_projects = user_data.get(fm_projects_claim, [])
+                logger.info(f"User projects from JWT: {user_projects}")
+                projects_to_request = [project.split("-")[-1].lower() for project in user_projects]
+                # Pass the already-fetched JWT so refresh_jit_credentials_parallel
+                # does not make a redundant second call to tooling-jwt.
+                new_creds = refresh_jit_credentials_parallel(projects_to_request, user_jwt=user_jwt)
                 if new_creds:
                     write_credentials_profile(aws_credentials=new_creds,cred_file_path=aws_credentials_profile)
                     write_credentials_file(aws_credentials=new_creds,cred_file_path=aws_credentials_file)
         if not shutdown.shutdown_signal:
-            logger.debug(f"Sleeping {poll_jit_interval} seconds until next attempt...")
-            time.sleep(poll_jit_interval)
+            sleep_time = poll_jit_interval if init_complete else init_retry_interval
+            logger.debug(f"Sleeping {sleep_time} seconds until next attempt...")
+            time.sleep(sleep_time)

@@ -170,3 +170,6 @@ helm/jit/values-*.yaml
 
 terraform/*tfstate*
 terraform/.terraform*
+
+.claude/
+.vscode/

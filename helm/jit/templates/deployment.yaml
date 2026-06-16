@@ -6,7 +6,7 @@ metadata:
   labels:
     app: {{ .Values.env.name }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.env.proxy_server_replicas | default 3 }}
   selector:
     matchLabels:
       app: {{ .Values.env.name }}
@@ -48,8 +48,8 @@ spec:
           value: {{ .Values.env.log_level | default "INFO" }}
         - name: FLASK_WORKERS
           value: "{{ .Values.env.flask_workers | default 5 }}"
-        - name: TESTING_MODE
-          value: "{{ .Values.testing | default false }}"
+        # - name: TESTING_MODE
+        #   value: "{{ .Values.testing | default false }}"
         ports:
         - containerPort: {{ .Values.env.containerPort | default 5000 }}
         livenessProbe:
