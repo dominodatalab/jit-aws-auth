@@ -172,3 +172,4 @@ terraform/*tfstate*
 terraform/.terraform*
 
 .claude/
+.vscode/

@@ -3,3 +3,4 @@ logging
 configparser
 backoff
 argparse
+PyJWT
