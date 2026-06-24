@@ -38,7 +38,10 @@ def check_update_clientbin():
 
 def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
     config = configparser.ConfigParser()
-    config.read(cred_file_path)
+    try:
+        config.read(cred_file_path)
+    except configparser.Error as e:
+        logger.warning(f"Could not parse existing profile file {cred_file_path}, it will be overwritten: {e}")
     log_creds = [{cred['accessKeyId']} for cred in aws_credentials]
     logger.debug(f"Credential profiles to write: {log_creds}")
     for cred in aws_credentials:
