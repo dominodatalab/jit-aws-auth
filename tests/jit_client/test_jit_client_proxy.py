@@ -2,10 +2,26 @@
 Unit tests for jit-client-proxy.py - JIT credential refresh daemon
 """
 
+import configparser
+import importlib.util
+import os
 import pytest
 from unittest.mock import MagicMock, patch, mock_open
 from datetime import datetime, timedelta
 import json
+
+
+@pytest.fixture(scope="session")
+def client_module():
+    """Load jit-client-proxy via importlib (filename contains a hyphen)."""
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        'jit-client', 'jit-client-proxy.py'
+    )
+    spec = importlib.util.spec_from_file_location('jit_client_proxy', path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 class TestCheckUpdateClientbin:
@@ -38,34 +54,81 @@ class TestCheckUpdateClientbin:
 class TestWriteCredentialsProfile:
     """Tests for write_credentials_profile function"""
 
-    def test_writes_profile_config(self, tmp_path):
-        """Test writes AWS profile configuration file"""
-        profile_file = tmp_path / "profile"
+    def test_writes_profile_config(self, client_module, tmp_path):
+        """Test writes correct AWS profile section and jitSessionId to file."""
+        profile_file = str(tmp_path / "profile")
+        aws_credentials = [{"session_id": "jit-user-app-123", "projects": ["project1"], "accessKeyId": "AKIA1"}]
 
+        client_module.write_credentials_profile(aws_credentials, profile_file)
+
+        config = configparser.ConfigParser()
+        config.read(profile_file)
+        assert config.has_section("profile project1")
+        assert config.get("profile project1", "jitSessionId") == "jit-user-app-123"
+        assert "credential-helper" in config.get("profile project1", "credential_process")
+
+    def test_handles_multiple_projects(self, client_module, tmp_path):
+        """Test creates a section for each project in the credentials list."""
+        profile_file = str(tmp_path / "profile")
         aws_credentials = [
-            {
-                "session_id": "jit-user-app-123",
-                "projects": ["project1"]
-            }
+            {"session_id": "session1", "projects": ["project1"], "accessKeyId": "AKIA1"},
+            {"session_id": "session2", "projects": ["project2"], "accessKeyId": "AKIA2"},
         ]
 
-        # The function would write a config like:
-        # [profile project1]
-        # credential_process=/etc/.aws/bin/credential-helper -credfile=... -profile=project1
-        # jitSessionId=jit-user-app-123
+        client_module.write_credentials_profile(aws_credentials, profile_file)
 
-        # Test would verify the file content format
+        config = configparser.ConfigParser()
+        config.read(profile_file)
+        assert config.has_section("profile project1")
+        assert config.has_section("profile project2")
+        assert config.get("profile project1", "jitSessionId") == "session1"
+        assert config.get("profile project2", "jitSessionId") == "session2"
 
-    def test_handles_multiple_projects(self, tmp_path):
-        """Test handles credentials for multiple projects"""
-        profile_file = tmp_path / "profile"
+    def test_preserves_existing_profile_sections(self, client_module, tmp_path):
+        """Test that pre-existing profile sections are not lost on subsequent writes."""
+        profile_file = str(tmp_path / "profile")
+        client_module.write_credentials_profile(
+            [{"session_id": "old-session", "projects": ["project1"], "accessKeyId": "AKIA1"}],
+            profile_file,
+        )
+        client_module.write_credentials_profile(
+            [{"session_id": "new-session", "projects": ["project2"], "accessKeyId": "AKIA2"}],
+            profile_file,
+        )
 
-        aws_credentials = [
-            {"session_id": "session1", "projects": ["project1"]},
-            {"session_id": "session2", "projects": ["project2"]}
-        ]
+        config = configparser.ConfigParser()
+        config.read(profile_file)
+        assert config.has_section("profile project1"), "pre-existing section was dropped"
+        assert config.has_section("profile project2")
 
-        # Should create sections for both projects
+    def test_handles_malformed_profile_file(self, client_module, tmp_path):
+        """Test logs a warning and still writes credentials when profile file has invalid INI format."""
+        profile_file = str(tmp_path / "profile")
+        aws_credentials = [{"session_id": "jit-session-123", "projects": ["project1"], "accessKeyId": "AKIA1"}]
+
+        with patch('configparser.ConfigParser.read',
+                   side_effect=configparser.MissingSectionHeaderError('source', 1, 'line')):
+            with patch.object(client_module.logger, 'warning') as mock_warning:
+                client_module.write_credentials_profile(aws_credentials, profile_file)
+
+                mock_warning.assert_called_once()
+                assert profile_file in mock_warning.call_args[0][0]
+
+        config = configparser.ConfigParser()
+        config.read(profile_file)
+        assert config.has_section("profile project1")
+        assert config.get("profile project1", "jitSessionId") == "jit-session-123"
+
+    def test_handles_missing_profile_file(self, client_module, tmp_path):
+        """Test silently creates the profile file when it does not yet exist."""
+        profile_file = str(tmp_path / "nonexistent_profile")
+        aws_credentials = [{"session_id": "jit-session-123", "projects": ["project1"], "accessKeyId": "AKIA1"}]
+
+        client_module.write_credentials_profile(aws_credentials, profile_file)
+
+        config = configparser.ConfigParser()
+        config.read(profile_file)
+        assert config.has_section("profile project1")
 
 
 class TestConvertJitApiToAwsCreds:
