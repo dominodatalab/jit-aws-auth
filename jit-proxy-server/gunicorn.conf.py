@@ -5,8 +5,10 @@ from os.path import exists
 
 bind_addr = os.getenv('FLASK_HOST','0.0.0.0')
 bind_port = os.getenv('FLASK_PORT','5000')
-worker_count = int(os.getenv('FLASK_WORKERS', 4))
-thread_count = int(os.getenv('FLASK_THREADS', 8))
+worker_count = int(os.getenv('FLASK_WORKERS', 6))
+# Sized with headroom above JIT_ACCESS_ENGINE_POOL_SIZE (default 32) per worker process,
+# so routes like /healthz can always get a thread even when the Access Engine pool is saturated.
+thread_count = int(os.getenv('FLASK_THREADS', 40))
 
 bind = f"{bind_addr}:{bind_port}"
 workers = worker_count

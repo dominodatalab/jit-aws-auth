@@ -4,7 +4,7 @@ Unit tests for client/client.py - JIT Access Engine HTTP client
 
 import pytest
 from unittest.mock import MagicMock, patch, mock_open
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import sys
 
@@ -271,6 +271,35 @@ class TestRefreshSecretsData:
 
         assert client._client_id == "new_client"
         assert client._r_username == "new_user"
+
+    def test_no_op_while_cached_secrets_not_due(self, mock_client_module):
+        """Test skips check_secret_rotation entirely while every secret's NextRotationDate is in the future"""
+        JitAccessEngineClient = mock_client_module['JitAccessEngineClient']
+
+        client = JitAccessEngineClient()
+
+        future_next_rotation = datetime(2099, 1, 1, tzinfo=timezone.utc)
+        for secret in client.cfg.secret_metadata:
+            secret['next_rotation'] = future_next_rotation
+        client.cfg.check_secret_rotation = MagicMock()
+
+        client.refresh_secrets_data()
+
+        client.cfg.check_secret_rotation.assert_not_called()
+
+    def test_checks_rotation_when_one_secret_is_due(self, mock_client_module):
+        """Test still checks when at least one secret's NextRotationDate has passed"""
+        JitAccessEngineClient = mock_client_module['JitAccessEngineClient']
+
+        client = JitAccessEngineClient()
+
+        client.cfg.secret_metadata[0]['next_rotation'] = datetime(2099, 1, 1, tzinfo=timezone.utc)
+        client.cfg.secret_metadata[1]['next_rotation'] = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        client.cfg.check_secret_rotation = MagicMock()
+
+        client.refresh_secrets_data()
+
+        client.cfg.check_secret_rotation.assert_called_once()
 
 
 class TestRefreshJitAccessToken:
