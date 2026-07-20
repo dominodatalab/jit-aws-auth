@@ -4,6 +4,32 @@ This directory contains scripts for testing and validating the JIT proxy server 
 
 ## Scripts
 
+### test_credentials.py
+
+Validates JIT credential existence and auto-regeneration **without any AWS connectivity** - useful when you don't have access to a JIT Access Engine API/AWS resources to test end-to-end, since it only inspects the local files the JIT client writes.
+
+**Features:**
+- Checks `AWS_CONFIG_FILE` environment variable and validates the file (including profile sections/`credential_process` entries)
+- Validates the JSON credentials file exists and parses the requested profile's credential shape (required fields present, not expired)
+- Deletes the credentials file and waits for the JIT client sidecar to auto-regenerate it
+- Re-validates the regenerated credential
+
+**Requirements:**
+None (standard library only)
+
+**Usage:**
+```bash
+# Basic test with default 60 second wait
+python test_credentials.py --profile my-project
+
+# Custom wait time for regeneration
+python test_credentials.py --profile my-project --wait-time 120
+
+# Use environment variable for profile
+export AWS_PROFILE=my-project
+python test_credentials.py
+```
+
 ### test_s3_access.py
 
 Validates that JIT credentials are working correctly by attempting to list an S3 bucket.
