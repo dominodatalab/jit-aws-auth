@@ -24,8 +24,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	json.Unmarshal(credbytes, &creds)
-	pretty_print, _ := json.MarshalIndent(creds[profileName], "", "    ")
+	if err := json.Unmarshal(credbytes, &creds); err != nil {
+		log.Fatal(err)
+	}
+	cred, ok := creds[profileName]
+	if !ok {
+		log.Fatalf("no credentials found for profile %q", profileName)
+	}
+	pretty_print, err := json.MarshalIndent(cred, "", "    ")
 	if err != nil {
 		log.Fatal(err)
 	}

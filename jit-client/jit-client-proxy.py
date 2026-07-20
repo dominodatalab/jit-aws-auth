@@ -1,4 +1,4 @@
-import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdown,shutil,backoff,jwt
+import sys,requests,os,time,datetime,logging,traceback,configparser,json,shutdown,shutil,backoff,jwt,tempfile
 from urllib.parse import urlparse
 from datetime import datetime,timedelta
 
@@ -36,6 +36,20 @@ def check_update_clientbin():
         logger.info(f"Copying credential process binaries to {client_bin_dir}...")
         shutil.copytree("/app/clientbin",client_bin_dir,dirs_exist_ok=True)
 
+def atomic_write(cred_file_path, write_func):
+    # Write to a temp file in the same directory, then atomically rename it onto the
+    # target. This avoids readers (e.g. the credential-helper invoked concurrently by
+    # the AWS SDK) observing a truncated or partially-written file mid-refresh.
+    cred_dir = os.path.dirname(cred_file_path) or "."
+    fd, tmp_path = tempfile.mkstemp(dir=cred_dir, prefix=f".{os.path.basename(cred_file_path)}.")
+    try:
+        with os.fdopen(fd, "w") as f:
+            write_func(f)
+        os.replace(tmp_path, cred_file_path)
+    except BaseException:
+        os.remove(tmp_path)
+        raise
+
 def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
     config = configparser.ConfigParser()
     try:
@@ -53,8 +67,7 @@ def write_credentials_profile(aws_credentials:list[dict],cred_file_path):
         logger.info(f'Adding AWS cli credentials: profile: {profile_name}, jitSessionId: {cred["session_id"]}, AWS Key ID: {cred["accessKeyId"]}')
         config.set(profile_str,"credential_process",f"{client_bin_dir}/credential-helper -credfile={aws_credentials_file} -profile={profile_name}")
         config.set(profile_str,"jitSessionId",cred["session_id"])
-    with open(cred_file_path, "w") as f:
-        config.write(f)
+    atomic_write(cred_file_path, config.write)
 
 def convert_jit_api_to_aws_creds(jit_creds:list[dict]) -> dict[dict]:
     # Based on https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-sourcing-external.html:
@@ -95,8 +108,7 @@ def convert_aws_creds_to_jit_api(aws_creds:dict[dict]) -> list[dict]:
 
 def write_credentials_file(aws_credentials:list[dict],cred_file_path):
     cred_dict = convert_jit_api_to_aws_creds(aws_credentials)
-    with open(cred_file_path, "w") as f:
-        json.dump(cred_dict,f,indent=4)
+    atomic_write(cred_file_path, lambda f: json.dump(cred_dict, f, indent=4))
 
 def delete_invalid_credentials_file(cred_file_path):
     if os.path.isfile(cred_file_path):
