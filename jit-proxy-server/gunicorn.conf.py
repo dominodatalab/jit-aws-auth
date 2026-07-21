@@ -14,7 +14,10 @@ bind = f"{bind_addr}:{bind_port}"
 workers = worker_count
 worker_class = 'gthread'
 threads = thread_count
-timeout = 120
+# A single upstream Access Engine call may legitimately take up to JIT_ACCESS_ENGINE_TIMEOUT_SECONDS
+# (default 60s), with put_sessions retrying up to twice that. Give workers enough headroom above
+# that worst case so a slow-but-legitimate upstream doesn't get mistaken for an unresponsive worker.
+timeout = int(os.getenv('GUNICORN_WORKER_TIMEOUT', 180))
 keepalive = 5
 # certfile = "/ssl/tls.crt"
 # keyfile = "/ssl/tls.key"

@@ -3,6 +3,9 @@ import os,json,boto3,botocore,logging,sys,datetime
 aws_sm_client = boto3.client('secretsmanager')
 logger = logging.getLogger('jit_proxy')
 certificate_path = os.environ.get('JIT_CERT_FILE','/etc/config/jit-config/ca.crt')
+# Per-call timeout for requests to the upstream JIT Access Engine. The Access Engine's
+# own API owner has stated a single call may legitimately take up to 60 seconds.
+access_engine_timeout = int(os.environ.get('JIT_ACCESS_ENGINE_TIMEOUT_SECONDS', 60))
 
 _jit_config_file = os.environ.get('JIT_CONFIG_FILE', '/etc/config/jit-config/jit.json')
 jit_config = {}
