@@ -29,6 +29,54 @@ from typing import Optional, Tuple
 
 REQUIRED_CREDENTIAL_FIELDS = ("AccessKeyId", "SecretAccessKey", "SessionToken", "Expiration")
 
+DEFAULT_STARTUP_TIMEOUT = 300
+STATUS_INTERVAL_SECONDS = 10
+
+
+def _path_ready(path: str) -> bool:
+    """Return True if path exists and is non-empty, without raising on a mid-write race."""
+    try:
+        return os.path.exists(path) and os.path.getsize(path) > 0
+    except OSError:
+        return False
+
+
+def wait_for_paths(paths, timeout: int, poll_interval: int = 1, label: str = "files",
+                    start_time: Optional[float] = None) -> Tuple[bool, float]:
+    """
+    Poll every `poll_interval` seconds until every path in `paths` exists and
+    is non-empty, up to `timeout` seconds total.
+
+    Args:
+        paths: Iterable of file paths that must all exist/be non-empty
+        timeout: Maximum number of seconds to wait
+        poll_interval: Seconds to sleep between checks
+        label: Description used in periodic status output
+        start_time: `time.monotonic()` reference to measure elapsed time from
+            (defaults to now, i.e. when polling begins)
+
+    Returns:
+        Tuple of (found: bool, elapsed_seconds: float) - elapsed is measured
+        from `start_time`, not from when this function was called
+    """
+    start = start_time if start_time is not None else time.monotonic()
+    last_status = time.monotonic()
+
+    while True:
+        if all(_path_ready(p) for p in paths):
+            return True, time.monotonic() - start
+
+        elapsed = time.monotonic() - start
+        if elapsed >= timeout:
+            return False, elapsed
+
+        now = time.monotonic()
+        if now - last_status >= STATUS_INTERVAL_SECONDS:
+            print(f"  Still waiting for {label} after {int(now - start)}s...")
+            last_status = now
+
+        time.sleep(poll_interval)
+
 
 def get_credentials_file_path() -> Optional[str]:
     """
@@ -236,25 +284,28 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 This script performs the following checks, entirely from local files:
-  1. Validates AWS config file and credentials file
-  2. Validates the credential content/shape for the given profile
-  3. Deletes the credentials file
-  4. Waits for JIT client to auto-regenerate credentials (default: 60s)
-  5. Re-validates the regenerated credential content for the given profile
+  1. Polls every 1s (up to --startup-timeout, default 300s) for the AWS config
+     and credentials files to appear, and reports how long that took
+  2. Validates AWS config file and credentials file
+  3. Validates the credential content/shape for the given profile
+  4. Deletes the credentials file
+  5. Polls every 1s (up to --wait-time, default 60s) for the JIT client to
+     auto-regenerate credentials, and reports how long that took
+  6. Re-validates the regenerated credential content for the given profile
 
 Examples:
-  # Basic test with default 60 second wait
+  # Basic test with default timeouts
   python test_credentials.py --profile my-project
 
-  # Custom wait time for regeneration
-  python test_credentials.py --profile my-project --wait-time 120
+  # Custom startup timeout (initial file appearance) and regeneration wait
+  python test_credentials.py --profile my-project --startup-timeout 120 --wait-time 120
 
   # Use environment variable for profile
   export AWS_PROFILE=my-project
   python test_credentials.py
 
 Environment Variables:
-  AWS_CONFIG_FILE - Path to AWS config file (will be validated)
+  AWS_CONFIG_FILE - Path to AWS config file (required)
   AWS_PROFILE     - Default profile to use (can be overridden with --profile)
         """
     )
@@ -266,10 +317,18 @@ Environment Variables:
     )
 
     parser.add_argument(
+        '--startup-timeout',
+        type=int,
+        default=DEFAULT_STARTUP_TIMEOUT,
+        help=f'Total seconds to wait for the config/credentials files to first appear, '
+             f'polling every 1s (default: {DEFAULT_STARTUP_TIMEOUT})'
+    )
+
+    parser.add_argument(
         '--wait-time',
         type=int,
-        default=60,
-        help='Seconds to wait for credentials regeneration after deletion (default: 60)'
+        default=0,
+        help=f'Seconds to wait for credentials regeneration after deletion, polling every 1s (default: {0})'
     )
 
     args = parser.parse_args()
@@ -280,9 +339,33 @@ Environment Variables:
         print("Error: AWS profile must be specified via --profile or AWS_PROFILE environment variable")
         sys.exit(1)
 
+    script_start = time.monotonic()
+
     print(f"{'='*80}")
     print(f"JIT Credentials Existence/Refresh Test (no AWS connectivity)")
     print(f"{'='*80}\n")
+
+    config_file = os.environ.get('AWS_CONFIG_FILE')
+    if not config_file:
+        print("Error: AWS_CONFIG_FILE environment variable must be set")
+        sys.exit(1)
+
+    credentials_file = get_credentials_file_path()
+
+    print(f"Waiting up to {args.startup_timeout}s for AWS config and credentials files to appear "
+          f"(polling every 1s)...")
+    files_found, existence_elapsed = wait_for_paths(
+        [config_file, credentials_file], args.startup_timeout,
+        label="config/credentials files", start_time=script_start
+    )
+
+    if not files_found:
+        print(f"\nERROR: Config/credentials files did not appear within {args.startup_timeout} seconds")
+        print(f"   Config file:      {config_file}")
+        print(f"   Credentials file: {credentials_file}")
+        sys.exit(1)
+
+    print(f"\nConfig/credentials files appeared {existence_elapsed:.1f}s after script start")
 
     check_aws_config_file()
 
@@ -304,13 +387,11 @@ Environment Variables:
         print("\nFailed to delete credentials file. Cannot test regeneration.")
         sys.exit(1)
 
-    print(f"\nWaiting {args.wait_time} seconds for JIT client to regenerate credentials...")
-    for i in range(args.wait_time, 0, -10):
-        print(f"  {i} seconds remaining...")
-        time.sleep(10 if i >= 10 else i)
-
-    print("\nChecking if credentials file was regenerated...")
-    regenerated, creds_path = check_credentials_file_exists()
+    print(f"\nWaiting up to {args.wait_time}s for JIT client to regenerate credentials "
+          f"(polling every 1s)...")
+    regenerated, regen_elapsed = wait_for_paths(
+        [creds_path], args.wait_time, label="regenerated credentials file"
+    )
 
     if not regenerated:
         print(f"\n{'='*80}")
@@ -319,6 +400,8 @@ Environment Variables:
         print(f"\nCredentials file was NOT regenerated after {args.wait_time} seconds")
         print(f"The JIT client may not be running or may have encountered an error")
         sys.exit(1)
+
+    print(f"\nCredentials file reappeared {regen_elapsed:.1f}s after deletion")
 
     regenerated_cred = check_credentials_content(profile_name, creds_path)
     if not regenerated_cred:
