@@ -2,7 +2,6 @@ import sys,flask,os,json,random,requests,logging,string,time
 from flask import request
 from datetime import datetime,timedelta
 app = flask.Flask(__name__)
-app.config["DEBUG"] = True
 
 user_sessions = {}
 # session_file = os.environ.get("JIT_SESSION_FILE",'/app/jit_sessions.json')
@@ -131,6 +130,11 @@ def healthz():
     return "healthy"
 
 
+def create_app():
+    return app
+
+
 if __name__ == '__main__':
     debug = os.environ.get("FLASK_ENV") == "development"
-    app.run(debug=True, host='0.0.0.0',port=os.environ.get('APP_PORT',8080))
+    app.config["DEBUG"] = debug
+    app.run(debug=debug, host='0.0.0.0', port=os.environ.get('APP_PORT', 8080))

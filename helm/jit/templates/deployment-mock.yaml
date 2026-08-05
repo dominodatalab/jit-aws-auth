@@ -40,9 +40,15 @@ spec:
         - name: DEFAULT_COMPUTE_NS
           value: {{ .Values.env.namespace.compute }}
         {{- if .Values.mock_server.containerPort }}
-        - name: APP_PORT
+        - name: FLASK_PORT
           value: "{{ .Values.mock_server.containerPort }}"
         {{- end }}
+        - name: LOG_LEVEL
+          value: {{ .Values.env.log_level | default "INFO" }}
+        - name: FLASK_WORKERS
+          value: "{{ .Values.mock_server.flask_workers | default 6 }}"
+        - name: FLASK_THREADS
+          value: "{{ .Values.mock_server.flask_threads | default 40 }}"
         ports:
         - containerPort: {{ .Values.mock_server.containerPort | default 8080 }}
         livenessProbe:

@@ -16,4 +16,4 @@ ENV COMMIT=$COMMITHASH
 ENV RELEASE=$RELEASEVER
 COPY --from=build --chown=nonroot:nonroot /app /app
 WORKDIR /app
-ENTRYPOINT ["python",  "jit_mock_api.py"]
+ENTRYPOINT ["gunicorn","--chdir","/app","jit_mock_api:create_app()"]
