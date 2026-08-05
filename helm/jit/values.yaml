@@ -13,8 +13,6 @@ env:
   iamrole: <JIT_SERVER_IAM_ROLE_ARN>
   aws_region: us-east-1
   # log_level: # For setting the logging level of the JIT server. Defaults to "INFO."
-  # projects_attribute_name: some_attribute_name # For setting a custom keycloak-mapped attribute that ties to the groups/projects SAML assertion.
-                                                 # Defaults to "fm_projects."
 
   namespace:
     platform: domino-platform
@@ -28,6 +26,8 @@ env:
     url: "http://localhost" # Jit API Server URL
     username: "someuser"    # Jit Username
     secret_arn: "arn:aws:secretsmanager:us-east-1:123456789012:secret:my-secret-123456" # Secret ARN
+  # projects_attribute_name: some_attribute_name # For setting a custom keycloak-mapped attribute that ties to the groups/projects SAML assertion.
+                                                 # Defaults to "fm_projects."    
     # expiry_token_minimum: 30 # Minimum token expiry time, defaults to 10 sec.
   # tls: # File path for the CA cert to be trusted by the JIT Proxy Server
   #   jit_tls_cert_ca:    
