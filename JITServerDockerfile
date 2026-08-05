@@ -18,4 +18,4 @@ ENV COMMIT=$COMMITHASH
 ENV RELEASE=$RELEASEVER
 COPY --from=build --chown=nonroot:nonroot /app/jit /app/jit
 WORKDIR /app
-ENTRYPOINT ["gunicorn","--chdir","/app/jit","jit_server:create_app()"]
+ENTRYPOINT ["gunicorn","--chdir","/app/jit","-c","/app/jit/gunicorn.conf.py","jit_server:create_app()"]
