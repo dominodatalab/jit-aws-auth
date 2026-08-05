@@ -80,7 +80,7 @@ class SecretConfig:
         now = datetime.datetime.now(datetime.timezone.utc)
         for secret in self.secret_metadata:
             next_rotation = secret.get('next_rotation')
-            if next_rotation is not None and now < next_rotation:
+            if not isinstance(next_rotation, datetime.datetime) or now < next_rotation:
                 logger.debug(f"Secret {secret['type']} is still cached (next rotation: {next_rotation}).")
             else:
                 logger.info(f"Secret {secret['type']} is due for rotation check. Refreshing secret data...")
