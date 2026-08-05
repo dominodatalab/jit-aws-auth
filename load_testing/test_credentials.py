@@ -30,6 +30,7 @@ from typing import Optional, Tuple
 REQUIRED_CREDENTIAL_FIELDS = ("AccessKeyId", "SecretAccessKey", "SessionToken", "Expiration")
 
 DEFAULT_STARTUP_TIMEOUT = 300
+DEFAULT_REGEN_TIMEOUT = 60
 STATUS_INTERVAL_SECONDS = 10
 
 
@@ -327,8 +328,9 @@ Environment Variables:
     parser.add_argument(
         '--wait-time',
         type=int,
-        default=0,
-        help=f'Seconds to wait for credentials regeneration after deletion, polling every 1s (default: {0})'
+        default=DEFAULT_REGEN_TIMEOUT,
+        help=f'Seconds to wait for credentials regeneration after deletion, polling every 1s '
+             f'(default: {DEFAULT_REGEN_TIMEOUT})'
     )
 
     args = parser.parse_args()
