@@ -27,7 +27,7 @@ keepalive = 5
 # Prometheus metrics config
 def when_ready(server):
 
-    prom_multip_path = getenv("PROMETHEUS_MULTIPROC_DIR", "/pi/metrics")
+    prom_multip_path = getenv("PROMETHEUS_MULTIPROC_DIR", "/app/jit/pi/metrics")
     if not exists(prom_multip_path):
         makedirs(prom_multip_path)
 
