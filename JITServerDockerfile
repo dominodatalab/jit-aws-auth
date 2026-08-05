@@ -16,6 +16,9 @@ ENV PYTHONPATH="/app"
 ENV PATH="/app/jit/venv/bin:$PATH"
 ENV COMMIT=$COMMITHASH
 ENV RELEASE=$RELEASEVER
+USER root
+RUN mkdir /pi && chown nonroot:nonroot /pi
+USER nonroot
 COPY --from=build --chown=nonroot:nonroot /app/jit /app/jit
 WORKDIR /app
 ENTRYPOINT ["gunicorn","--chdir","/app/jit","-c","/app/jit/gunicorn.conf.py","jit_server:create_app()"]
