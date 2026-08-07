@@ -21,8 +21,12 @@ from client import JitAccessEngineClient,constants
 # Create a Flask application
 app = Flask(__name__)
 
-# Maximum number of parallel requests to the upstream JIT API
-MAX_PARALLEL_REQUESTS = int(os.environ.get("JIT_MAX_PARALLEL_REQUESTS", 30))
+# Shared, process-wide thread pool for upstream Access Engine calls. A single
+# long-lived executor (instead of one created per request) bounds total
+# concurrent upstream connections regardless of how many requests are in
+# flight at once, rather than letting each request fan out independently.
+ACCESS_ENGINE_POOL_SIZE = int(os.environ.get("JIT_ACCESS_ENGINE_POOL_SIZE", 32))
+access_engine_executor = ThreadPoolExecutor(max_workers=ACCESS_ENGINE_POOL_SIZE, thread_name_prefix="access-engine")
 
 def create_app():
     global app,client
@@ -98,16 +102,14 @@ def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
 
     logger.info(f"Body data to send to JIT API: {user_project_data}")
 
-    # Execute all upstream calls in parallel
+    # Submit all upstream calls to the shared Access Engine executor, so total
+    # concurrency to the upstream API is bounded process-wide, not per request.
     user_session_list = []
-    num_workers = min(len(user_project_data), MAX_PARALLEL_REQUESTS)
-    if num_workers > 0:
-        with ThreadPoolExecutor(max_workers=num_workers) as executor:
-            futures = {executor.submit(fetch_session, project): project for project in user_project_data}
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    user_session_list.append(result)
+    futures = {access_engine_executor.submit(fetch_session, project): project for project in user_project_data}
+    for future in as_completed(futures):
+        result = future.result()
+        if result:
+            user_session_list.append(result)
 
     return user_session_list
 

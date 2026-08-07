@@ -4,7 +4,7 @@ Unit tests for client/constants.py - Configuration and secrets management
 
 import pytest
 from unittest.mock import MagicMock, patch, mock_open
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import sys
 
@@ -139,39 +139,45 @@ class TestGetSecretLastRotated:
     """Tests for _get_secret_lastrotated method"""
 
     def test_returns_rotation_date(self, mock_constants_module):
-        """Test returns LastRotatedDate when present"""
+        """Test returns LastRotatedDate and NextRotationDate when present"""
         constants = mock_constants_module['module']
 
         rotation_time = datetime(2024, 6, 15, 12, 0, 0)
+        next_rotation_time = datetime(2024, 7, 15, 12, 0, 0)
 
         # Patch the module-level aws_sm_client directly
         with patch.object(constants, 'aws_sm_client') as mock_client:
-            mock_client.describe_secret.return_value = {'LastRotatedDate': rotation_time}
+            mock_client.describe_secret.return_value = {
+                'LastRotatedDate': rotation_time,
+                'NextRotationDate': next_rotation_time,
+            }
             mock_client.get_secret_value.side_effect = lambda SecretId=None, **kw: (
                 {'SecretString': json.dumps(SAMPLE_PING_SECRET)} if 'ping' in SecretId
                 else {'SecretString': json.dumps(SAMPLE_NUID_SECRET)}
             )
 
             config = constants.SecretConfig(SAMPLE_JIT_CONFIG)
-            result = config._get_secret_lastrotated('arn:test')
+            last_rotated, next_rotation = config._get_secret_rotation_dates('arn:test')
 
-            assert result == rotation_time
+            assert last_rotated == rotation_time
+            assert next_rotation == next_rotation_time
 
     def test_returns_none_when_never_rotated(self, mock_constants_module):
-        """Test returns None when secret has never been rotated"""
+        """Test returns None for both dates when secret has never been rotated"""
         constants = mock_constants_module['module']
 
         with patch.object(constants, 'aws_sm_client') as mock_client:
-            mock_client.describe_secret.return_value = {}  # No LastRotatedDate
+            mock_client.describe_secret.return_value = {}  # No LastRotatedDate/NextRotationDate
             mock_client.get_secret_value.side_effect = lambda SecretId=None, **kw: (
                 {'SecretString': json.dumps(SAMPLE_PING_SECRET)} if 'ping' in SecretId
                 else {'SecretString': json.dumps(SAMPLE_NUID_SECRET)}
             )
 
             config = constants.SecretConfig(SAMPLE_JIT_CONFIG)
-            result = config._get_secret_lastrotated('arn:test')
+            last_rotated, next_rotation = config._get_secret_rotation_dates('arn:test')
 
-            assert result is None
+            assert last_rotated is None
+            assert next_rotation is None
 
     def test_handles_client_error(self, mock_constants_module):
         """Test handles boto3 ClientError gracefully"""
@@ -194,9 +200,10 @@ class TestGetSecretLastRotated:
                 'DescribeSecret'
             )
 
-            result = config._get_secret_lastrotated('arn:nonexistent')
+            last_rotated, next_rotation = config._get_secret_rotation_dates('arn:nonexistent')
 
-            assert result is None
+            assert last_rotated is None
+            assert next_rotation is None
 
 
 class TestGetSecret:
@@ -312,15 +319,17 @@ class TestRefreshSecretData:
 class TestCheckSecretRotation:
     """Tests for check_secret_rotation method"""
 
-    def test_detects_rotation_and_refreshes(self, mock_constants_module):
-        """Test detects when secret has been rotated and refreshes"""
+    def test_refreshes_when_next_rotation_has_passed(self, mock_constants_module):
+        """Test refreshes secret data once its cached NextRotationDate has passed"""
         constants = mock_constants_module['module']
 
-        old_rotation_time = datetime(2024, 1, 1, 0, 0, 0)
-        new_rotation_time = datetime(2024, 1, 2, 0, 0, 0)
+        past_next_rotation = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
         with patch.object(constants, 'aws_sm_client') as mock_client:
-            mock_client.describe_secret.return_value = {'LastRotatedDate': old_rotation_time}
+            mock_client.describe_secret.return_value = {
+                'LastRotatedDate': datetime(2023, 12, 1, tzinfo=timezone.utc),
+                'NextRotationDate': past_next_rotation,
+            }
             mock_client.get_secret_value.side_effect = lambda SecretId=None, **kw: (
                 {'SecretString': json.dumps(SAMPLE_PING_SECRET)} if 'ping' in SecretId
                 else {'SecretString': json.dumps(SAMPLE_NUID_SECRET)}
@@ -328,25 +337,29 @@ class TestCheckSecretRotation:
 
             config = constants.SecretConfig(SAMPLE_JIT_CONFIG)
 
-            # Now simulate rotation
-            mock_client.describe_secret.return_value = {'LastRotatedDate': new_rotation_time}
+            # Now simulate a new secret value now that rotation is due
             new_ping = {'client-id': 'rotated-client', 'client-secret': 'rotated-secret', 'auth-server-url': 'rotated-url'}
-            mock_client.get_secret_value.side_effect = None
-            mock_client.get_secret_value.return_value = {'SecretString': json.dumps(new_ping)}
+            mock_client.get_secret_value.side_effect = lambda SecretId=None, **kw: (
+                {'SecretString': json.dumps(new_ping)} if 'ping' in SecretId
+                else {'SecretString': json.dumps(SAMPLE_NUID_SECRET)}
+            )
 
             config.check_secret_rotation()
 
             # Should have refreshed at least ping secret
             assert config.ping_client_id == 'rotated-client'
 
-    def test_no_refresh_when_not_rotated(self, mock_constants_module):
-        """Test does not refresh when secrets have not been rotated"""
+    def test_no_refresh_while_next_rotation_in_future(self, mock_constants_module):
+        """Test does not hit Secrets Manager again while NextRotationDate is still in the future"""
         constants = mock_constants_module['module']
 
-        rotation_time = datetime(2024, 1, 1, 0, 0, 0)
+        future_next_rotation = datetime(2099, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
         with patch.object(constants, 'aws_sm_client') as mock_client:
-            mock_client.describe_secret.return_value = {'LastRotatedDate': rotation_time}
+            mock_client.describe_secret.return_value = {
+                'LastRotatedDate': datetime(2024, 1, 1, tzinfo=timezone.utc),
+                'NextRotationDate': future_next_rotation,
+            }
             mock_client.get_secret_value.side_effect = lambda SecretId=None, **kw: (
                 {'SecretString': json.dumps(SAMPLE_PING_SECRET)} if 'ping' in SecretId
                 else {'SecretString': json.dumps(SAMPLE_NUID_SECRET)}
@@ -354,11 +367,13 @@ class TestCheckSecretRotation:
 
             config = constants.SecretConfig(SAMPLE_JIT_CONFIG)
             original_client_id = config.ping_client_id
+            describe_secret_calls_after_init = mock_client.describe_secret.call_count
 
-            # Same rotation time - should not refresh
+            # Cached NextRotationDate is still in the future - should not refresh or re-check
             config.check_secret_rotation()
 
             assert config.ping_client_id == original_client_id
+            assert mock_client.describe_secret.call_count == describe_secret_calls_after_init
 
 
 class TestToDebug:

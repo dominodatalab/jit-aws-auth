@@ -1,13 +1,13 @@
-import sys,flask,os,json,random,requests,logging,string
+import sys,flask,os,json,random,requests,logging,string,time
 from flask import request
 from datetime import datetime,timedelta
 app = flask.Flask(__name__)
-app.config["DEBUG"] = True
 
 user_sessions = {}
 # session_file = os.environ.get("JIT_SESSION_FILE",'/app/jit_sessions.json')
 # aws_creds_file = os.environ.get("JIT_CREDS_FILE",'/app/aws_creds.json')
 cred_lifetime_seconds = int(os.environ.get("CRED_LIFETIME",3600))
+max_response_jitter_seconds = float(os.environ.get("MAX_RESPONSE_JITTER_SECONDS",60))
 logger = logging.getLogger('jit_mock_server')
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO").upper(),
@@ -99,6 +99,9 @@ def new_jit_session():
     # "userId": str,
     # "userEmail": str
     # }    
+    jitter_seconds = random.uniform(0, max_response_jitter_seconds)
+    logger.debug(f'Sleeping for {jitter_seconds:.2f}s of jitter before creating JIT session')
+    time.sleep(jitter_seconds)
     user_data = request.get_json()
     logger.debug(f'Creating JIT Session for Domino User {user_data["userId"]} with Project {user_data["projectName"]}')
     new_user_session = create_jit_user_session(user_data)
@@ -127,6 +130,11 @@ def healthz():
     return "healthy"
 
 
+def create_app():
+    return app
+
+
 if __name__ == '__main__':
     debug = os.environ.get("FLASK_ENV") == "development"
-    app.run(debug=True, host='0.0.0.0',port=os.environ.get('APP_PORT',8080))
+    app.config["DEBUG"] = debug
+    app.run(debug=debug, host='0.0.0.0', port=os.environ.get('APP_PORT', 8080))

@@ -7,6 +7,7 @@ from jit.utils.types import JsonDict
 from jit.client import constants
 
 CERT_PATH = constants.certificate_path
+ACCESS_ENGINE_TIMEOUT = constants.access_engine_timeout
 
 class SessionsClientMixin:
     """
@@ -26,7 +27,7 @@ class SessionsClientMixin:
         """
         params = {"sub": sub, "active": 'true', "project": project}
         return self.get('/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions', params=params,
-                        verify=CERT_PATH, timeout=10).json()
+                        verify=CERT_PATH, timeout=ACCESS_ENGINE_TIMEOUT).json()
 
     def get_access_contracts(self, application_short_name: str, lifecycle: str) -> JsonDict:
         """
@@ -40,13 +41,15 @@ class SessionsClientMixin:
         """
         params = {"applicationShortName": application_short_name, "lifecycle": lifecycle}
         return self.get('/infrastructure/management/provisioning/aws-jit-provisioning/access-contracts', params=params,
-                        verify=CERT_PATH, timeout=10).json()
+                        verify=CERT_PATH, timeout=ACCESS_ENGINE_TIMEOUT).json()
 
     @backoff.on_exception(
         backoff.expo,
         requests.exceptions.RequestException,
         max_tries=3,
-        max_time=20
+        # A single attempt may legitimately take up to ACCESS_ENGINE_TIMEOUT seconds, so the
+        # retry budget must cover at least one full-length attempt plus a retry.
+        max_time=2 * ACCESS_ENGINE_TIMEOUT
     )
     def put_sessions(self, payload: JsonDict) -> None:
         """
@@ -60,7 +63,7 @@ class SessionsClientMixin:
         """
         x = self.post(
             f"/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions",
-            json=payload, verify=CERT_PATH, timeout=10)
+            json=payload, verify=CERT_PATH, timeout=ACCESS_ENGINE_TIMEOUT)
         x.raise_for_status()  # Raise on 4xx/5xx to trigger retry
         return x
 
@@ -76,7 +79,7 @@ class SessionsClientMixin:
         """
         return self.get(
             f"/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions/{jit_session_id}/aws-credentials",
-            verify=CERT_PATH, timeout=10).json()
+            verify=CERT_PATH, timeout=ACCESS_ENGINE_TIMEOUT).json()
 
     def get_session_by_id(self, jit_session_id: str) -> JsonDict:
         """
@@ -90,4 +93,4 @@ class SessionsClientMixin:
         """
         return self.get(
             f"/infrastructure/management/provisioning/aws-jit-provisioning/jit-sessions/{jit_session_id}",
-            verify=CERT_PATH, timeout=10).json()
+            verify=CERT_PATH, timeout=ACCESS_ENGINE_TIMEOUT).json()

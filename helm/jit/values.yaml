@@ -12,9 +12,7 @@ env:
   # proxy_server_replicas: # Set the number of JIT Proxy Server replicas. Defaults to 3.
   iamrole: <JIT_SERVER_IAM_ROLE_ARN>
   aws_region: us-east-1
-  # log_level: # For setting the logging level of the JIT server. Defaults to "INFO."
-  # projects_attribute_name: some_attribute_name # For setting a custom keycloak-mapped attribute that ties to the groups/projects SAML assertion.
-                                                 # Defaults to "fm_projects."
+  log_level: DEBUG # For setting the logging level of the JIT server. Defaults to "INFO."
 
   namespace:
     platform: domino-platform
@@ -28,6 +26,8 @@ env:
     url: "http://localhost" # Jit API Server URL
     username: "someuser"    # Jit Username
     secret_arn: "arn:aws:secretsmanager:us-east-1:123456789012:secret:my-secret-123456" # Secret ARN
+  # projects_attribute_name: some_attribute_name # For setting a custom keycloak-mapped attribute that ties to the groups/projects SAML assertion.
+                                                 # Defaults to "fm_projects."    
     # expiry_token_minimum: 30 # Minimum token expiry time, defaults to 10 sec.
   # tls: # File path for the CA cert to be trusted by the JIT Proxy Server
   #   jit_tls_cert_ca:    
@@ -39,5 +39,7 @@ testing: false
 mock_server:
   jitMockContainer: jit-mock
   jitMockVersion: v1.0.0-release
-  containerPort: 8080
+  containerPort: 8080 # Maps to the mock server's FLASK_PORT (gunicorn bind port), not APP_PORT.
   port: 80
+  # flask_workers: # Number of gunicorn worker processes for the mock server. Defaults to 6.
+  # flask_threads: # Number of gunicorn threads per worker for the mock server. Defaults to 40.

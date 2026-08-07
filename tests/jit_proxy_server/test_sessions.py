@@ -142,6 +142,32 @@ class TestSessionsClientMixin:
 
         assert result.status_code == 200
         mock_client.post.assert_called_once()
+        assert mock_client.post.call_args[1]['timeout'] == 60
+
+    def test_put_sessions_uses_configurable_timeout(self, monkeypatch, mock_sessions_module):
+        """Test put_sessions honors the (module-level) configurable Access Engine timeout"""
+        SessionsClientMixin = mock_sessions_module['SessionsClientMixin']
+        sessions_module = sys.modules[SessionsClientMixin.__module__]
+
+        # ACCESS_ENGINE_TIMEOUT is read from the module namespace on each call, so
+        # patching it directly exercises the same code path env var overrides would.
+        monkeypatch.setattr(sessions_module, 'ACCESS_ENGINE_TIMEOUT', 15)
+
+        class MockClient(SessionsClientMixin):
+            def __init__(self):
+                self.get = MagicMock()
+                self.post = MagicMock()
+
+        mock_client = MockClient()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'sessionId': 'new-session'}
+        mock_response.raise_for_status = MagicMock()
+        mock_client.post.return_value = mock_response
+
+        mock_client.put_sessions({'eventType': 'createJitProjectSession'})
+
+        assert mock_client.post.call_args[1]['timeout'] == 15
 
     def test_put_sessions_with_retry_on_exception(self, mock_sessions_module):
         """Test put_sessions behavior on request exceptions"""

@@ -144,8 +144,17 @@ class JitAccessEngineClient(requests.Session, SessionsClientMixin):
     
     def refresh_secrets_data(self) -> None:
         """
-        Refreshes the secrets data from AWS Secrets Manager
+        Refreshes the secrets data from AWS Secrets Manager, unless every
+        cached secret's NextRotationDate is still in the future.
         """
+        now = datetime.datetime.now(datetime.timezone.utc)
+        secrets_due = any(
+            secret.get('next_rotation') is None or now >= secret['next_rotation']
+            for secret in self.cfg.secret_metadata
+        )
+        if not secrets_due:
+            logger.debug("All cached secrets are still valid (NextRotationDate not yet reached); skipping Secrets Manager check.")
+            return
         self.cfg.check_secret_rotation()
         self._token_endpoint = self.cfg.ping_token_endpoint
         self._client_id = self.cfg.ping_client_id

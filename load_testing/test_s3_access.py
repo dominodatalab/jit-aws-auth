@@ -20,8 +20,9 @@ Environment Variables:
 import argparse
 import os
 import sys
-import time
 from typing import Optional, Tuple
+
+from test_credentials import wait_for_paths
 
 try:
     import boto3
@@ -390,15 +391,11 @@ Environment Variables:
         sys.exit(1)
 
     # Wait for regeneration
-    print(f"\nWaiting {args.wait_time} seconds for JIT client to regenerate credentials...")
-    for i in range(args.wait_time, 0, -10):
-        print(f"  {i} seconds remaining...")
-        time.sleep(10 if i >= 10 else i)
-
-    print("\nChecking if credentials file was regenerated...")
-
-    # Check if file was recreated
-    regenerated, _ = check_credentials_file_exists()
+    print(f"\nWaiting up to {args.wait_time}s for JIT client to regenerate credentials "
+          f"(polling every 1s)...")
+    regenerated, regen_elapsed = wait_for_paths(
+        [creds_path], args.wait_time, label="regenerated credentials file"
+    )
 
     if not regenerated:
         print(f"\n{'='*80}")
@@ -407,6 +404,8 @@ Environment Variables:
         print(f"\nCredentials file was NOT regenerated after {args.wait_time} seconds")
         print(f"The JIT client may not be running or may have encountered an error")
         sys.exit(1)
+
+    print(f"\nCredentials file reappeared {regen_elapsed:.1f}s after deletion")
 
     print(f"\n{'='*80}")
     print(f"REGENERATION TEST SUCCESSFUL")

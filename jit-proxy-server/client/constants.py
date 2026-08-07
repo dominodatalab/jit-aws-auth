@@ -1,8 +1,11 @@
-import os,json,boto3,botocore,logging,sys
+import os,json,boto3,botocore,logging,sys,datetime
 
 aws_sm_client = boto3.client('secretsmanager')
 logger = logging.getLogger('jit_proxy')
 certificate_path = os.environ.get('JIT_CERT_FILE','/etc/config/jit-config/ca.crt')
+# Per-call timeout for requests to the upstream JIT Access Engine. The Access Engine's
+# own API owner has stated a single call may legitimately take up to 60 seconds.
+access_engine_timeout = int(os.environ.get('JIT_ACCESS_ENGINE_TIMEOUT_SECONDS', 60))
 
 _jit_config_file = os.environ.get('JIT_CONFIG_FILE', '/etc/config/jit-config/jit.json')
 jit_config = {}
@@ -25,8 +28,10 @@ class SecretConfig:
         self.jit_endpoint = jit_config['jit_endpoint']
         self._ping_secret_arn = jit_config['ping_secret']
         self._nuid_secret_arn = jit_config['nuid_secret']        
-        self.secret_metadata = [{'type':'ping','arn': self._ping_secret_arn, 'last_rotated': self._get_secret_lastrotated(self._ping_secret_arn)},
-                            {'type':'nuid','arn': self._nuid_secret_arn, 'last_rotated': self._get_secret_lastrotated(self._nuid_secret_arn)}]
+        ping_last_rotated, ping_next_rotation = self._get_secret_rotation_dates(self._ping_secret_arn)
+        nuid_last_rotated, nuid_next_rotation = self._get_secret_rotation_dates(self._nuid_secret_arn)
+        self.secret_metadata = [{'type':'ping','arn': self._ping_secret_arn, 'last_rotated': ping_last_rotated, 'next_rotation': ping_next_rotation},
+                            {'type':'nuid','arn': self._nuid_secret_arn, 'last_rotated': nuid_last_rotated, 'next_rotation': nuid_next_rotation}]
         self._ping_dict = self.get_secret(self._ping_secret_arn)
         self._nuid_dict = self.get_secret(self._nuid_secret_arn)
         self.ping_client_id = self._ping_dict['client-id']
@@ -35,15 +40,21 @@ class SecretConfig:
         self.nuid_username = self._nuid_dict['username']
         self.nuid_password = self._nuid_dict['password']
 
-    def _get_secret_lastrotated(self,secret_arn):
-        secret_last_rotated = None
+    def _get_secret_rotation_dates(self,secret_arn):
+        """
+        Returns a (last_rotated, next_rotation) tuple from Secrets Manager's
+        describe_secret response, either of which may be None if absent
+        (e.g. rotation is not enabled for this secret).
+        """
+        last_rotated = None
+        next_rotation = None
         try:
             secret_metadata = aws_sm_client.describe_secret(SecretId=secret_arn)
-            if 'LastRotatedDate' in secret_metadata:
-                secret_last_rotated = secret_metadata['LastRotatedDate']
+            last_rotated = secret_metadata.get('LastRotatedDate')
+            next_rotation = secret_metadata.get('NextRotationDate')
         except botocore.exceptions.ClientError as e:
             logger.critical(f"Error retrieving secret metadata {secret_arn}: {e.response['Error']['Message']}")
-        return secret_last_rotated
+        return last_rotated, next_rotation
 
     def get_secret(self,secret_arn):
         secret_value = None
@@ -66,13 +77,17 @@ class SecretConfig:
             self.nuid_password = self._nuid_dict['password']
     
     def check_secret_rotation(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
         for secret in self.secret_metadata:
-            check_rotation_time = self._get_secret_lastrotated(secret['arn'])
-            if check_rotation_time and check_rotation_time > secret['last_rotated']:
-                logger.info(f"Secret {secret['type']} has been rotated. Refreshing secret data...")
+            next_rotation = secret.get('next_rotation')
+            if not isinstance(next_rotation, datetime.datetime) or now < next_rotation:
+                logger.debug(f"Secret {secret['type']} is still cached (next rotation: {next_rotation}).")
+            else:
+                logger.info(f"Secret {secret['type']} is due for rotation check. Refreshing secret data...")
+                last_rotated, next_rotation = self._get_secret_rotation_dates(secret['arn'])
+                secret['last_rotated'] = last_rotated
+                secret['next_rotation'] = next_rotation
                 self.refresh_secret_data(secret)
-                self.secret_metadata.remove(secret)
-                self.secret_metadata.append({'type':secret['type'], 'arn': secret['arn'], 'last_rotated': check_rotation_time})
                 logger.info(f"Secret metadata for {secret['type']} has been updated.")
 
 

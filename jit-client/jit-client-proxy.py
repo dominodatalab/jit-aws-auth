@@ -11,7 +11,10 @@ service_endpoint = os.environ.get("DOMINO_JIT_ENDPOINT","http://jit-svc.domino-f
 token_min_expiry_in_seconds = int(os.environ.get("TOKEN_MIN",300))
 poll_jit_interval = int(os.environ.get("POLL_INTERVAL",30))
 init_retry_interval = int(os.environ.get("INIT_RETRY_INTERVAL",3))
-request_timeout = int(os.environ.get("REQUEST_TIMEOUT",30))
+# The JIT Proxy may itself wait up to ~2x its configured Access Engine timeout (default 60s)
+# per project before answering, so this must comfortably exceed that rather than the older
+# fixed 30s default, or the client will give up/retry before the proxy legitimately finishes.
+request_timeout = int(os.environ.get("REQUEST_TIMEOUT",150))
 fm_projects_claim = os.environ.get("FM_PROJECTS_ATTRIBUTE","fm_projects")
 
 session_list = []
@@ -191,7 +194,7 @@ def refresh_jit_credentials(project=None) -> list[dict]:
         }
         try: 
             logger.info(f'Refreshing credentials from JIT URL: {url}')
-            resp = requests.get(url, headers=headers, json={})
+            resp = requests.get(url, headers=headers, json={}, timeout=request_timeout)
             logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
             resp.raise_for_status()
             if resp.status_code == 200:
@@ -225,7 +228,7 @@ def refresh_jit_credentials_parallel(project_list:list[str], user_jwt:str=None) 
         }
         try: 
             logger.info(f'Refreshing credentials from JIT URL: {url}')
-            resp = requests.get(url, headers=headers, json={'projects':project_list})
+            resp = requests.get(url, headers=headers, json={'projects':project_list}, timeout=request_timeout)
             logger.warning(f'Status code from JIT URL {url}: {resp.status_code}')
             resp.raise_for_status()
             if resp.status_code == 200:
