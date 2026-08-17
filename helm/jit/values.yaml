@@ -13,6 +13,7 @@ env:
   iamrole: <JIT_SERVER_IAM_ROLE_ARN>
   aws_region: us-east-1
   log_level: DEBUG # For setting the logging level of the JIT server. Defaults to "INFO."
+  creds_shared_storage: false
 
   namespace:
     platform: domino-platform
