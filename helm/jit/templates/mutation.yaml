@@ -27,7 +27,6 @@ rules:
       volumeMounts:
         - mountPath: /etc/.aws/
           name: jit-aws-creds
-          readOnly: true
       {{- end }}
     insertContainer:
       containerType: app
