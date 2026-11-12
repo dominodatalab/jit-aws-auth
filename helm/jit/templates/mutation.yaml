@@ -28,12 +28,6 @@ rules:
         - mountPath: /etc/.aws/
           name: jit-aws-creds
           readOnly: true
-    insertVolumeMounts:
-      containerSelector:
-        - jit
-      volumeMounts:
-        - mountPath: /etc/.aws/
-          name: jit-aws-creds
       {{- end }}
     insertContainer:
       containerType: app
