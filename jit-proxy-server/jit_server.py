@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import logging,sys,os,jwt,requests,json,flask,datetime
+import logging,sys,os,jwt,requests,json,flask,datetime,time,uuid
 from flask import Flask,request,abort
 from datetime import datetime
 from json.decoder import JSONDecodeError
@@ -68,8 +68,12 @@ def fetch_session(project: dict) -> dict:
     Returns:
         Dict containing session credentials if successful, None otherwise
     """
+    request_id = project.get('requestId')
+    start = time.perf_counter()
     try:
         session = client.put_sessions(project)
+        elapsed = time.perf_counter() - start
+        logger.info(f"JIT API call returned: requestId {request_id}, project {project['projectName']}, status {session.status_code}, elapsed {elapsed:.3f}s")
         logger.debug(f"JIT API Response for {project}: {session.json()}")
         if session.status_code == 200:
             return session.json()
@@ -77,14 +81,14 @@ def fetch_session(project: dict) -> dict:
             logger.warning(f"Upstream API returned {session.status_code} for project {project['projectName']}: {session.text}")
             return None
     except requests.exceptions.RequestException as e:
-        logger.error(f"Network error calling upstream API for project {project['projectName']}: {e}")
+        logger.error(f"Network error calling upstream API for requestId {request_id}, project {project['projectName']} after {time.perf_counter() - start:.3f}s: {e}")
         return None
     except (KeyError, JSONDecodeError) as e:
-        logger.error(f"Invalid response from upstream API for project {project['projectName']}: {e}")
+        logger.error(f"Invalid response from upstream API for requestId {request_id}, project {project['projectName']} after {time.perf_counter() - start:.3f}s: {e}")
         return None
 
 def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
-    key_list = ['eventType','applicationShortName','lifecycle','projectName','userId','userEmail']
+    key_list = ['eventType','applicationShortName','lifecycle','projectName','userId','userEmail','requestId']
     ug_list = [ ug for ug in user_group_list if 'POLICY-MANAGER' not in ug ] # Any group name with "POLICY-MANAGER" in it can be filtered per PT.
     logger.debug(f"User group list: {ug_list}")
     user_project_data = []
@@ -98,9 +102,12 @@ def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
         session['projectName'] = prj_split[-1].lower() # Per PT
         session['userId'] = user_id
         session['userEmail'] = user_mail
+        # Unique per upstream call, so each call can be correlated in our logs and the JIT API's.
+        session['requestId'] = str(uuid.uuid4())
         user_project_data.append(session)
 
-    logger.info(f"Body data to send to JIT API: {user_project_data}")
+    logger.info(f"Body data to send to JIT API {user_project_data}")
+    batch_start = time.perf_counter()
 
     # Submit all upstream calls to the shared Access Engine executor, so total
     # concurrency to the upstream API is bounded process-wide, not per request.
@@ -111,6 +118,7 @@ def create_new_sessions(user_id:str,user_mail:str,user_group_list:[]) -> []:
         if result:
             user_session_list.append(result)
 
+    logger.info(f"All JIT API calls complete: projects {len(user_project_data)}, sessions returned {len(user_session_list)}, elapsed {time.perf_counter() - batch_start:.3f}s")
     return user_session_list
 
 @app.route('/jit-sessions', methods=['GET'])
