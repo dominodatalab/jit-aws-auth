@@ -1,10 +1,8 @@
 flask
 requests
-configparser
 boto3
 botocore
 gunicorn
 PyJWT
-logging
 prometheus_flask_exporter
 backoff

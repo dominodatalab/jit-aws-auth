@@ -1,6 +1,3 @@
 requests
-logging
-configparser
 backoff
-argparse
 PyJWT
